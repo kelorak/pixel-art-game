@@ -203,9 +203,6 @@ if __name__ == '__main__':
     all_sprites.add(player)
     all_sprites.add(crosshair)
 
-    background_track_sprite = pygame.sprite.Sprite()
-    background_track_sprite.image = pygame.image.load('sprites/background_track.png').convert_alpha()
-    background_track_sprite.rect = background_track_sprite.image.get_rect(center=(WIDTH // 2, 0))
 
     SPAWN_ENEMY_EVERY_N_FRAMES = 60
 
@@ -226,7 +223,6 @@ if __name__ == '__main__':
                 all_sprites.add(projectile)
 
         DISPLAY_SURFACE.fill(pygame.Color('olivedrab4'))
-        DISPLAY_SURFACE.blit(background_track_sprite.image, background_track_sprite.rect)
 
         if frame_number % SPAWN_ENEMY_EVERY_N_FRAMES == 0:
             enemy = spawn_random_enemy()
