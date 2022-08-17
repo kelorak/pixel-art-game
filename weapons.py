@@ -22,7 +22,7 @@ class Projectile(pg.sprite.Sprite):
         self.direction = vector / vector_length
         self.is_active = True
 
-    def update_position(self):
+    def update(self):
         if self.is_active:
             self.pos -= self.direction * self.speed
             self.rect.midbottom = self.pos

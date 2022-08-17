@@ -14,11 +14,27 @@ debug_info = True
 PLAYER_SPRITE_SIZE = 30
 
 
+class Hearts(pygame.sprite.Sprite):
+    heart_size = 48
+    full_heart = pygame.transform.scale(pygame.image.load('sprites/heart_full.png').convert_alpha(), (heart_size, heart_size))
+    empty_heart = pygame.transform.scale(pygame.image.load('sprites/heart_empty.png').convert_alpha(), (heart_size, heart_size))
+
+    def update(self, current_number_of_hearts, base_number_of_hearts):
+        empty_hearts = base_number_of_hearts - current_number_of_hearts
+        start_pos = Vec((0, HEIGHT - self.heart_size))
+        for i in range(current_number_of_hearts):
+            DISPLAY_SURFACE.blit(self.full_heart, start_pos)
+            start_pos.x += self.heart_size
+        for i in range(empty_hearts):
+            DISPLAY_SURFACE.blit(self.empty_heart, start_pos)
+            start_pos.x += self.heart_size
+
+
 class Player(pygame.sprite.Sprite):
     player_sprite = pygame.transform.scale(pygame.image.load('sprites/player.png').convert_alpha(), (48, 48))
     acceleration = 0.5
     friction = -0.12
-    hearts = 3
+    base_hearts = 3
     immunity = 0
     weapons = cycle([Arrow, Axe])
 
@@ -32,6 +48,7 @@ class Player(pygame.sprite.Sprite):
         self.acc = Vec(0, 0)
         self.is_active = True
         self.current_weapon = next(self.weapons)
+        self.hearts = self.base_hearts
 
     def handle_actions(self):
         self.move()
@@ -131,7 +148,7 @@ class Enemy(pygame.sprite.Sprite):
                     self.image = self.enemy_dead_sprite
                 self.rect = self.image.get_rect(center=(0, 0))
                 self.rect.midbottom = self.pos
-            elif isinstance(sprite, Player) and self.is_active and not sprite.immunity and pygame.sprite.collide_rect(self, sprite):
+            elif isinstance(sprite, Player) and self.is_active and not sprite.immunity and pygame.sprite.collide_rect(self, sprite) and player.is_active:
                 sprite.hearts -= 1
                 if sprite.hearts <= 0 and sprite.is_active:
                     sprite.kill_player()
@@ -179,6 +196,7 @@ if __name__ == '__main__':
 
     pygame.display.set_caption("game")
     player = Player()
+    hearts = Hearts()
     crosshair = Crosshair()
 
     all_sprites = pygame.sprite.Group()
@@ -215,11 +233,12 @@ if __name__ == '__main__':
             all_sprites.add(enemy)
 
         player.handle_actions()
+        hearts.update(player.hearts, player.base_hearts)
 
         non_enemy_sprites = [sprite for sprite in all_sprites if not isinstance(sprite, Enemy)]
         for entity in all_sprites:
             if isinstance(entity, Projectile):
-                entity.update_position()
+                entity.update()
             elif isinstance(entity, Enemy):
                 entity.move(player.pos)
                 entity.check_for_damage(non_enemy_sprites)
