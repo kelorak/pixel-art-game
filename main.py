@@ -37,7 +37,7 @@ class Hearts(pg.sprite.Sprite):
 
 
 class Player(pg.sprite.Sprite):
-    player_sprite = pg.transform.scale(pg.image.load('sprites/player.png').convert_alpha(), (48, 48))
+    player_sprite = pg.transform.scale(pg.image.load('sprites/player.png').convert_alpha(), (96, 96))
     acceleration = 0.5
     friction = -0.12
     base_hearts = 3
@@ -103,11 +103,11 @@ class Player(pg.sprite.Sprite):
 
 
 class Enemy(pg.sprite.Sprite):
-    enemy_sprite = pg.transform.scale(pg.image.load('sprites/ninja.png').convert_alpha(), (64, 64))
-    enemy_dead_sprite = pg.transform.scale(pg.image.load('sprites/ninja_dead.png').convert_alpha(), (64, 64))
+    enemy_sprite = pg.transform.scale(pg.image.load('sprites/ninja.png').convert_alpha(), (128, 128))
+    enemy_dead_sprite = pg.transform.scale(pg.image.load('sprites/ninja_dead.png').convert_alpha(), (128, 128))
 
     base_speed = 1
-    base_health = 200
+    base_health = 100
 
     def __init__(self, position):
         super().__init__()

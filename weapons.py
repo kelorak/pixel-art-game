@@ -46,18 +46,18 @@ class Projectile(pg.sprite.Sprite):
 
 
 class Arrow(Projectile):
-    sprite = pg.image.load('sprites/arrow.png').convert_alpha()
+    sprite = pg.transform.scale(pg.image.load('sprites/arrow.png').convert_alpha(), (48, 48))
     speed = 10
     speed_decay = 0.01
     damage = 34
-    cooldown = 20
+    cooldown = 50
     knock_back = 3
 
 
 class ThrowingAxe(Projectile):
-    sprite = pg.transform.scale(pg.image.load('sprites/axe.png').convert_alpha(), (32, 32))
+    sprite = pg.transform.scale(pg.image.load('sprites/axe.png').convert_alpha(), (64, 64))
     speed = 8
     speed_decay = 0.15
     damage = 50
-    cooldown = 50
+    cooldown = 80
     knock_back = 10
