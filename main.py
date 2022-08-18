@@ -10,9 +10,9 @@ from pygame.locals import K_UP, K_LEFT, K_DOWN, K_RIGHT
 from pygame.locals import K_w, K_a, K_s, K_d
 from pygame.math import Vector2 as Vec
 
-from settings import WIDTH, HEIGHT, DISPLAY_SURFACE, FONT, FPS
+from settings import WIDTH, HEIGHT, DISPLAY_SURFACE, FONT, FPS, SPAWN_ENEMY_EVERY_N_FRAMES
 from utils import rot_center
-from weapons import Projectile, Arrow, Axe
+from weapons import Projectile, Arrow, ThrowingAxe
 
 debug_info = True
 
@@ -41,7 +41,7 @@ class Player(pg.sprite.Sprite):
     acceleration = 0.5
     friction = -0.12
     base_hearts = 3
-    weapons = cycle([Arrow, Axe])
+    weapons = cycle([Arrow, ThrowingAxe])
 
     def __init__(self):
         super().__init__()
@@ -106,7 +106,7 @@ class Enemy(pg.sprite.Sprite):
     enemy_sprite = pg.transform.scale(pg.image.load('sprites/ninja.png').convert_alpha(), (64, 64))
     enemy_dead_sprite = pg.transform.scale(pg.image.load('sprites/ninja_dead.png').convert_alpha(), (64, 64))
 
-    speed = 1
+    base_speed = 1
     base_health = 200
 
     def __init__(self, position):
@@ -119,7 +119,12 @@ class Enemy(pg.sprite.Sprite):
         self.acc = Vec(0, 0)
 
         self.health = self.base_health
+        self.speed = self.base_speed
         self.is_active = True
+
+    def update(self, player_pos, sprites):
+        self.move(player_pos)
+        self.check_for_damage(sprites)
 
     def show_health_bar(self):
         health_fraction = self. health / self.base_health
@@ -143,6 +148,8 @@ class Enemy(pg.sprite.Sprite):
             direction = vector / vector_length
             self.pos -= direction * self.speed
             self.rect.midbottom = self.pos
+            speed_regain_ratio = 0.1  # TODO: check if speed regain after knock back should be parametrized based on enemy size/weight
+            self.speed += (self.base_speed - self.speed) * speed_regain_ratio
 
             self.show_health_bar()
 
@@ -152,6 +159,7 @@ class Enemy(pg.sprite.Sprite):
                     and self.is_active \
                     and sprite.is_active \
                     and pg.sprite.collide_rect(self, sprite):
+                self.speed -= projectile.knock_back
                 self.health -= projectile.damage
                 sprite.is_active = False  # TODO: projectile stay in enemy when hit, decrease the bounding box? Projectile should be attached to enemy when he's moving
                 if self.health <= 0:
@@ -218,8 +226,6 @@ if __name__ == '__main__':
     all_sprites.add(player)
     all_sprites.add(crosshair)
 
-    SPAWN_ENEMY_EVERY_N_FRAMES = 60
-
     FRAME_NUMBER = 0
     while True:
         for event in pg.event.get():
@@ -250,8 +256,7 @@ if __name__ == '__main__':
             if isinstance(entity, Projectile):
                 entity.update()
             elif isinstance(entity, Enemy):
-                entity.move(player.pos)
-                entity.check_for_damage(non_enemy_sprites)
+                entity.update(player.pos, non_enemy_sprites)
             DISPLAY_SURFACE.blit(entity.image, entity.rect)
 
         if debug_info:

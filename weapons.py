@@ -7,9 +7,12 @@ from utils import angle_between_vectors, rot_center
 
 
 class Projectile(pg.sprite.Sprite):
-    sprite = pg.surface.Surface
-    speed = 0
-    speed_decay = 0
+    sprite: pg.surface.Surface
+    speed: int
+    speed_decay: float
+    damage: int
+    cooldown: int
+    knock_back: int
 
     def __init__(self, origin, destination):
         super().__init__()
@@ -48,14 +51,13 @@ class Arrow(Projectile):
     speed_decay = 0.01
     damage = 34
     cooldown = 20
+    knock_back = 3
 
 
-class Axe(Projectile):
-    """
-
-    """
+class ThrowingAxe(Projectile):
     sprite = pg.transform.scale(pg.image.load('sprites/axe.png').convert_alpha(), (32, 32))
     speed = 8
     speed_decay = 0.15
     damage = 50
     cooldown = 50
+    knock_back = 10
