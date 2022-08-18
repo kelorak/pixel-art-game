@@ -39,7 +39,7 @@ class Projectile(pg.sprite.Sprite):
                 self.is_active = False
 
             distance_from_destination = sqrt(vector[0] ** 2 + vector[1] ** 2)
-            if distance_from_destination < 5 or \
+            if distance_from_destination < 10 or \
                     self.pos.x < 0 or self.pos.x > WIDTH or \
                     self.pos.y < 0 or self.pos.y > HEIGHT:
                 self.is_active = False
@@ -47,8 +47,8 @@ class Projectile(pg.sprite.Sprite):
 
 class Arrow(Projectile):
     sprite = pg.transform.scale(pg.image.load('sprites/arrow.png').convert_alpha(), (48, 48))
-    speed = 10
-    speed_decay = 0.01
+    speed = 20
+    speed_decay = 0.12
     damage = 34
     cooldown = 50
     knock_back = 3
@@ -56,7 +56,7 @@ class Arrow(Projectile):
 
 class ThrowingAxe(Projectile):
     sprite = pg.transform.scale(pg.image.load('sprites/axe.png').convert_alpha(), (64, 64))
-    speed = 8
+    speed = 10
     speed_decay = 0.15
     damage = 50
     cooldown = 80
