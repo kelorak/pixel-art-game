@@ -1,14 +1,18 @@
 import random
 import sys
 from itertools import cycle
+from math import sqrt
 from random import randrange
 
-import pygame
-from pygame.locals import *
+import pygame as pg
+from pygame.locals import K_ESCAPE, K_SPACE, MOUSEMOTION, KEYDOWN
+from pygame.locals import K_UP, K_LEFT, K_DOWN, K_RIGHT
+from pygame.locals import K_w, K_a, K_s, K_d
 from pygame.math import Vector2 as Vec
 
-from settings import *
-from weapons import *
+from settings import WIDTH, HEIGHT, DISPLAY_SURFACE, FONT, FPS
+from utils import rot_center
+from weapons import Projectile, Arrow, Axe
 
 debug_info = True
 
@@ -16,24 +20,24 @@ debug_info = True
 PLAYER_SPRITE_SIZE = 30
 
 
-class Hearts(pygame.sprite.Sprite):
+class Hearts(pg.sprite.Sprite):
     heart_size = 48
-    full_heart = pygame.transform.scale(pygame.image.load('sprites/heart_full.png').convert_alpha(), (heart_size, heart_size))
-    empty_heart = pygame.transform.scale(pygame.image.load('sprites/heart_empty.png').convert_alpha(), (heart_size, heart_size))
+    full_heart = pg.transform.scale(pg.image.load('sprites/heart_full.png').convert_alpha(), (heart_size, heart_size))
+    empty_heart = pg.transform.scale(pg.image.load('sprites/heart_empty.png').convert_alpha(), (heart_size, heart_size))
 
     def update(self, current_number_of_hearts, base_number_of_hearts):
         empty_hearts = base_number_of_hearts - current_number_of_hearts
         start_pos = Vec((0, HEIGHT - self.heart_size))
-        for i in range(current_number_of_hearts):
+        for _ in range(current_number_of_hearts):
             DISPLAY_SURFACE.blit(self.full_heart, start_pos)
             start_pos.x += self.heart_size
-        for i in range(empty_hearts):
+        for _ in range(empty_hearts):
             DISPLAY_SURFACE.blit(self.empty_heart, start_pos)
             start_pos.x += self.heart_size
 
 
-class Player(pygame.sprite.Sprite):
-    player_sprite = pygame.transform.scale(pygame.image.load('sprites/player.png').convert_alpha(), (48, 48))
+class Player(pg.sprite.Sprite):
+    player_sprite = pg.transform.scale(pg.image.load('sprites/player.png').convert_alpha(), (48, 48))
     acceleration = 0.5
     friction = -0.12
     base_hearts = 3
@@ -65,7 +69,7 @@ class Player(pygame.sprite.Sprite):
     def move(self):
         self.acc = Vec(0, 0)
 
-        pressed_keys = pygame.key.get_pressed()
+        pressed_keys = pg.key.get_pressed()
         if pressed_keys[K_LEFT] or pressed_keys[K_a]:
             self.acc.x = -self.acceleration
         if pressed_keys[K_RIGHT] or pressed_keys[K_d]:
@@ -98,9 +102,9 @@ class Player(pygame.sprite.Sprite):
         self.is_active = False
 
 
-class Enemy(pygame.sprite.Sprite):
-    enemy_sprite = pygame.transform.scale(pygame.image.load('sprites/ninja.png').convert_alpha(), (64, 64))
-    enemy_dead_sprite = pygame.transform.scale(pygame.image.load('sprites/ninja_dead.png').convert_alpha(), (64, 64))
+class Enemy(pg.sprite.Sprite):
+    enemy_sprite = pg.transform.scale(pg.image.load('sprites/ninja.png').convert_alpha(), (64, 64))
+    enemy_dead_sprite = pg.transform.scale(pg.image.load('sprites/ninja_dead.png').convert_alpha(), (64, 64))
 
     speed = 1
     base_health = 200
@@ -129,8 +133,8 @@ class Enemy(pygame.sprite.Sprite):
 
         bar_left = self.pos.x - self.rect.width / 2
         bar_top = self.pos.y - self.rect.height
-        pygame.draw.rect(DISPLAY_SURFACE, pg.color.Color('white'), pygame.Rect(bar_left, bar_top, self.rect.width, 5),  1)
-        pygame.draw.rect(DISPLAY_SURFACE, pg.color.Color(bar_color), pygame.Rect(bar_left + 1, bar_top + 1, health_fraction * (self.rect.width - 1), 3))
+        pg.draw.rect(DISPLAY_SURFACE, pg.color.Color('white'), pg.Rect(bar_left, bar_top, self.rect.width, 5),  1)
+        pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bar_color), pg.Rect(bar_left + 1, bar_top + 1, health_fraction * (self.rect.width - 1), 3))
 
     def move(self, player_pos):
         if self.is_active:
@@ -144,7 +148,10 @@ class Enemy(pygame.sprite.Sprite):
 
     def check_for_damage(self, sprites):
         for sprite in sprites:
-            if isinstance(sprite, Projectile) and self.is_active and sprite.is_active and pygame.sprite.collide_rect(self, sprite):
+            if isinstance(sprite, Projectile) \
+                    and self.is_active \
+                    and sprite.is_active \
+                    and pg.sprite.collide_rect(self, sprite):
                 self.health -= projectile.damage
                 sprite.is_active = False  # TODO: projectile stay in enemy when hit, decrease the bounding box? Projectile should be attached to enemy when he's moving
                 if self.health <= 0:
@@ -152,15 +159,19 @@ class Enemy(pygame.sprite.Sprite):
                     self.image = self.enemy_dead_sprite
                 self.rect = self.image.get_rect(center=(0, 0))
                 self.rect.midbottom = self.pos
-            elif isinstance(sprite, Player) and self.is_active and not sprite.immunity and pygame.sprite.collide_rect(self, sprite) and player.is_active:
+            elif isinstance(sprite, Player) \
+                    and self.is_active \
+                    and not sprite.immunity \
+                    and pg.sprite.collide_rect(self, sprite) \
+                    and player.is_active:
                 sprite.hearts -= 1
                 if sprite.hearts <= 0 and sprite.is_active:
                     sprite.kill_player()
                 sprite.immunity = 120
 
 
-class Crosshair(pygame.sprite.Sprite):
-    crosshair_sprite = pygame.image.load('sprites/crosshair.png').convert_alpha()
+class Crosshair(pg.sprite.Sprite):
+    crosshair_sprite = pg.image.load('sprites/crosshair.png').convert_alpha()
 
     def __init__(self):
         super().__init__()
@@ -185,49 +196,49 @@ def spawn_random_enemy():
             return Enemy((0, randrange(HEIGHT)))
 
 
-def display_text(surface, text_to_display, pos, font, color=pygame.Color('black')):
+def display_text(surface, text_to_display, pos, font, font_color=pg.Color('black')):
     lines = text_to_display.splitlines()
     font_height = font.get_height()
     pos_x, pos_y = pos
     for line in lines:
-        line_surface = font.render(line, 0, color)
+        line_surface = font.render(line, 0, font_color)
         surface.blit(line_surface, (pos_x, pos_y))
         pos_y += font_height
 
 
 if __name__ == '__main__':
-    FramePerSec = pygame.time.Clock()
+    FramePerSec = pg.time.Clock()
 
-    pygame.display.set_caption("game")
+    pg.display.set_caption("game")
     player = Player()
     hearts = Hearts()
     crosshair = Crosshair()
 
-    all_sprites = pygame.sprite.Group()
+    all_sprites = pg.sprite.Group()
     all_sprites.add(player)
     all_sprites.add(crosshair)
 
     SPAWN_ENEMY_EVERY_N_FRAMES = 60
 
-    frame_number = 0
+    FRAME_NUMBER = 0
     while True:
-        for event in pygame.event.get():
+        for event in pg.event.get():
             if event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
-                    pygame.quit()
+                    pg.quit()
                     sys.exit()
                 elif event.key == K_SPACE:
                     player.switch_weapon()
             elif event.type == MOUSEMOTION:
                 crosshair.update_position(event.pos)
-        if pygame.mouse.get_pressed()[0] and not player.weapon_cooldown:
+        if pg.mouse.get_pressed()[0] and not player.weapon_cooldown:
             weapon_type = player.current_weapon
-            projectile = weapon_type(player.pos, pygame.mouse.get_pos())
+            projectile = weapon_type(player.pos, pg.mouse.get_pos())
             player.weapon_cooldown = weapon_type.cooldown
             all_sprites.add(projectile)
-        DISPLAY_SURFACE.fill(pygame.Color('olivedrab4'))
+        DISPLAY_SURFACE.fill(pg.Color('olivedrab4'))
 
-        if frame_number % SPAWN_ENEMY_EVERY_N_FRAMES == 0:
+        if FRAME_NUMBER % SPAWN_ENEMY_EVERY_N_FRAMES == 0:
             enemy = spawn_random_enemy()
             all_sprites.add(enemy)
 
@@ -245,7 +256,7 @@ if __name__ == '__main__':
 
         if debug_info:
             text = f'{FramePerSec.get_fps()=}\n' \
-                   f'{frame_number=}\n' \
+                   f'{FRAME_NUMBER=}\n' \
                    f'{player.hearts=}\n' \
                    f'{player.immunity=}\n' \
                    f'{player.weapon_cooldown=}\n' \
@@ -254,6 +265,6 @@ if __name__ == '__main__':
 
             display_text(DISPLAY_SURFACE, text, (20, 20), FONT)
 
-        frame_number += 1
-        pygame.display.update()
+        FRAME_NUMBER += 1
+        pg.display.update()
         FramePerSec.tick(FPS)

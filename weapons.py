@@ -1,6 +1,9 @@
-from utils import *
 from math import sqrt
+
+import pygame as pg
+
 from settings import WIDTH, HEIGHT
+from utils import angle_between_vectors, rot_center
 
 
 class Projectile(pg.sprite.Sprite):
@@ -33,7 +36,9 @@ class Projectile(pg.sprite.Sprite):
                 self.is_active = False
 
             distance_from_destination = sqrt(vector[0] ** 2 + vector[1] ** 2)
-            if distance_from_destination < 5 or self.pos.x < 0 or self.pos.x > WIDTH or self.pos.y < 0 or self.pos.y > HEIGHT:
+            if distance_from_destination < 5 or \
+                    self.pos.x < 0 or self.pos.x > WIDTH or \
+                    self.pos.y < 0 or self.pos.y > HEIGHT:
                 self.is_active = False
 
 
@@ -46,6 +51,9 @@ class Arrow(Projectile):
 
 
 class Axe(Projectile):
+    """
+
+    """
     sprite = pg.transform.scale(pg.image.load('sprites/axe.png').convert_alpha(), (32, 32))
     speed = 8
     speed_decay = 0.15
