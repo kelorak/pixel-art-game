@@ -42,6 +42,7 @@ class Arrow(Projectile):
     speed = 10
     speed_decay = 0.01
     damage = 34
+    cooldown = 20
 
 
 class Axe(Projectile):
@@ -49,3 +50,4 @@ class Axe(Projectile):
     speed = 8
     speed_decay = 0.15
     damage = 50
+    cooldown = 50

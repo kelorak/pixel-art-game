@@ -1,12 +1,14 @@
+import random
+import sys
+from itertools import cycle
+from random import randrange
+
 import pygame
 from pygame.locals import *
-import sys
-from random import randrange
-import random
+from pygame.math import Vector2 as Vec
+
 from settings import *
 from weapons import *
-from pygame.math import Vector2 as Vec
-from itertools import cycle
 
 debug_info = True
 
@@ -35,25 +37,27 @@ class Player(pygame.sprite.Sprite):
     acceleration = 0.5
     friction = -0.12
     base_hearts = 3
-    immunity = 0
     weapons = cycle([Arrow, Axe])
 
     def __init__(self):
         super().__init__()
         self.image = self.player_sprite
         self.rect = self.image.get_rect(center=(0, 0))
-
         self.pos = Vec((WIDTH / 2, HEIGHT / 2))
         self.vel = Vec(0, 0)
         self.acc = Vec(0, 0)
+        self.immunity = 0
         self.is_active = True
         self.current_weapon = next(self.weapons)
+        self.weapon_cooldown = 0
         self.hearts = self.base_hearts
 
-    def handle_actions(self):
+    def update(self):
         self.move()
         if self.immunity:
             self.immunity -= 1
+        if self.weapon_cooldown:
+            self.weapon_cooldown -= 1
 
     def switch_weapon(self):
         self.current_weapon = next(self.weapons)
@@ -95,8 +99,8 @@ class Player(pygame.sprite.Sprite):
 
 
 class Enemy(pygame.sprite.Sprite):
-    enemy_sprite = pygame.transform.scale(pygame.image.load('sprites/ninja.png').convert_alpha(), (48, 48))
-    enemy_dead_sprite = pygame.transform.scale(pygame.image.load('sprites/ninja_dead.png').convert_alpha(), (48, 48))
+    enemy_sprite = pygame.transform.scale(pygame.image.load('sprites/ninja.png').convert_alpha(), (64, 64))
+    enemy_dead_sprite = pygame.transform.scale(pygame.image.load('sprites/ninja_dead.png').convert_alpha(), (64, 64))
 
     speed = 1
     base_health = 200
@@ -181,8 +185,8 @@ def spawn_random_enemy():
             return Enemy((0, randrange(HEIGHT)))
 
 
-def display_text(surface, text, pos, font, color=pygame.Color('black')):
-    lines = text.splitlines()
+def display_text(surface, text_to_display, pos, font, color=pygame.Color('black')):
+    lines = text_to_display.splitlines()
     font_height = font.get_height()
     pos_x, pos_y = pos
     for line in lines:
@@ -203,7 +207,6 @@ if __name__ == '__main__':
     all_sprites.add(player)
     all_sprites.add(crosshair)
 
-
     SPAWN_ENEMY_EVERY_N_FRAMES = 60
 
     frame_number = 0
@@ -217,18 +220,18 @@ if __name__ == '__main__':
                     player.switch_weapon()
             elif event.type == MOUSEMOTION:
                 crosshair.update_position(event.pos)
-            elif event.type == MOUSEBUTTONDOWN:
-                weapon_type = player.current_weapon
-                projectile = weapon_type(player.pos, event.pos)
-                all_sprites.add(projectile)
-
+        if pygame.mouse.get_pressed()[0] and not player.weapon_cooldown:
+            weapon_type = player.current_weapon
+            projectile = weapon_type(player.pos, pygame.mouse.get_pos())
+            player.weapon_cooldown = weapon_type.cooldown
+            all_sprites.add(projectile)
         DISPLAY_SURFACE.fill(pygame.Color('olivedrab4'))
 
         if frame_number % SPAWN_ENEMY_EVERY_N_FRAMES == 0:
             enemy = spawn_random_enemy()
             all_sprites.add(enemy)
 
-        player.handle_actions()
+        player.update()
         hearts.update(player.hearts, player.base_hearts)
 
         non_enemy_sprites = [sprite for sprite in all_sprites if not isinstance(sprite, Enemy)]
@@ -245,6 +248,7 @@ if __name__ == '__main__':
                    f'{frame_number=}\n' \
                    f'{player.hearts=}\n' \
                    f'{player.immunity=}\n' \
+                   f'{player.weapon_cooldown=}\n' \
                    f'{player.pos.x=}\n' \
                    f'{player.pos.y=}\n' \
 
