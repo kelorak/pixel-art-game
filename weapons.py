@@ -21,7 +21,7 @@ class Projectile(pg.sprite.Sprite):
         self.image, self.rect = rot_center(self.sprite, angle + 90)
         self.pos = origin + (1, 1)
         self.dest = destination
-        self.rect.midbottom = self.pos
+        self.rect.center = self.pos
 
         vector = origin - destination
         vector_length = sqrt(vector[0] ** 2 + vector[1] ** 2)
@@ -31,7 +31,7 @@ class Projectile(pg.sprite.Sprite):
     def update(self):
         if self.is_active:
             self.pos -= self.direction * self.speed
-            self.rect.midbottom = self.pos
+            self.rect.center = self.pos
             vector = self.pos - self.dest
 
             self.speed -= self.speed_decay

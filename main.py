@@ -8,13 +8,13 @@ import pygame as pg
 from pygame.locals import K_ESCAPE, K_SPACE, MOUSEMOTION, KEYDOWN
 from pygame.locals import K_UP, K_LEFT, K_DOWN, K_RIGHT
 from pygame.locals import K_w, K_a, K_s, K_d
+from pygame.locals import K_F1, K_F2
 from pygame.math import Vector2 as Vec
 
 from settings import WIDTH, HEIGHT, DISPLAY_SURFACE, FONT, FPS, SPAWN_ENEMY_EVERY_N_FRAMES
+from settings import DEBUG_SHOW_INFO, DEBUG_SHOW_BOUNDING_BOX
 from utils import rot_center
 from weapons import Projectile, Arrow, ThrowingAxe
-
-debug_info = True
 
 
 PLAYER_SPRITE_SIZE = 30
@@ -46,7 +46,7 @@ class Player(pg.sprite.Sprite):
     def __init__(self):
         super().__init__()
         self.image = self.player_sprite
-        self.rect = self.image.get_rect(center=(0, 0))
+        self.rect = self.image.get_bounding_rect()
         self.pos = Vec((WIDTH / 2, HEIGHT / 2))
         self.vel = Vec(0, 0)
         self.acc = Vec(0, 0)
@@ -93,7 +93,7 @@ class Player(pg.sprite.Sprite):
         if self.pos.y < 0 + PLAYER_SPRITE_SIZE / 2:
             self.pos.y = 0 + PLAYER_SPRITE_SIZE / 2
 
-        self.rect.midbottom = self.pos
+        self.rect.center = self.pos
 
     def kill_player(self):
         print('player is dead')
@@ -112,7 +112,7 @@ class Enemy(pg.sprite.Sprite):
     def __init__(self, position):
         super().__init__()
         self.image = self.enemy_sprite
-        self.rect = self.image.get_rect(center=(0, 0))
+        self.rect = self.image.get_bounding_rect()
 
         self.pos = Vec(position)
         self.vel = Vec(0, 0)
@@ -147,7 +147,7 @@ class Enemy(pg.sprite.Sprite):
             vector_length = sqrt(vector[0] ** 2 + vector[1] ** 2)
             direction = vector / vector_length
             self.pos -= direction * self.speed
-            self.rect.midbottom = self.pos
+            self.rect.center = self.pos
             speed_regain_ratio = 0.1  # TODO: check if speed regain after knock back should be parametrized based on enemy size/weight
             self.speed += (self.base_speed - self.speed) * speed_regain_ratio
 
@@ -165,8 +165,6 @@ class Enemy(pg.sprite.Sprite):
                 if self.health <= 0:
                     self.is_active = False
                     self.image = self.enemy_dead_sprite
-                self.rect = self.image.get_rect(center=(0, 0))
-                self.rect.midbottom = self.pos
             elif isinstance(sprite, Player) \
                     and self.is_active \
                     and not sprite.immunity \
@@ -184,24 +182,25 @@ class Crosshair(pg.sprite.Sprite):
     def __init__(self):
         super().__init__()
         self.image = self.crosshair_sprite
-        self.rect = self.image.get_rect(center=(0, 0))
+        self.rect = self.image.get_bounding_rect()
         self.pos = Vec((WIDTH / 2, HEIGHT / 2))
 
     def update_position(self, pos):
         self.pos = pos
-        self.rect.midbottom = self.pos
+        self.rect.center = self.pos
 
 
 def spawn_random_enemy():
+    enemy_class = Enemy
     match random.choice([1, 2, 3, 4]):
         case 1:  # top
-            return Enemy((randrange(WIDTH), 0))
+            return enemy_class((randrange(WIDTH), 0))
         case 2:  # right
-            return Enemy((WIDTH, randrange(HEIGHT)))
+            return enemy_class((WIDTH, randrange(HEIGHT)))
         case 3:  # bottom
-            return Enemy((randrange(WIDTH), HEIGHT))
+            return enemy_class((randrange(WIDTH), HEIGHT))
         case 4:  # left
-            return Enemy((0, randrange(HEIGHT)))
+            return enemy_class((0, randrange(HEIGHT)))
 
 
 def display_text(surface, text_to_display, pos, font, font_color=pg.Color('black')):
@@ -235,6 +234,10 @@ if __name__ == '__main__':
                     sys.exit()
                 elif event.key == K_SPACE:
                     player.switch_weapon()
+                elif event.key == K_F1:
+                    DEBUG_SHOW_INFO = not DEBUG_SHOW_INFO
+                elif event.key == K_F2:
+                    DEBUG_SHOW_BOUNDING_BOX = not DEBUG_SHOW_BOUNDING_BOX
             elif event.type == MOUSEMOTION:
                 crosshair.update_position(event.pos)
         if pg.mouse.get_pressed()[0] and not player.weapon_cooldown:
@@ -259,7 +262,12 @@ if __name__ == '__main__':
                 entity.update(player.pos, non_enemy_sprites)
             DISPLAY_SURFACE.blit(entity.image, entity.rect)
 
-        if debug_info:
+        if DEBUG_SHOW_BOUNDING_BOX:
+            for entity in all_sprites:
+                if hasattr(entity, 'is_active'):
+                    bounding_box_color = 'green' if entity.is_active else 'red'
+                    pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bounding_box_color), entity.rect, 1)
+        if DEBUG_SHOW_INFO:
             text = f'{FramePerSec.get_fps()=}\n' \
                    f'{FRAME_NUMBER=}\n' \
                    f'{player.hearts=}\n' \
