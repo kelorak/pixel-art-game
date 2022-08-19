@@ -37,15 +37,22 @@ class Hearts(pg.sprite.Sprite):
 
 
 class Player(pg.sprite.Sprite):
-    player_sprite = pg.transform.scale(pg.image.load('sprites/player.png').convert_alpha(), (96, 96))
-    acceleration = 0.5
+    # TODO: all these images should be loaded from sprite sheet:
+    player_idle_sprite_right = pg.transform.scale(pg.image.load('sprites/player.png').convert_alpha(), (96, 96))
+    player_idle_sprite_left = pg.transform.flip(player_idle_sprite_right.copy(), True, False)
+    player_walking_sprites_right = cycle([pg.transform.scale(pg.image.load('sprites/player_walking_1.png').convert_alpha(), (96, 96)),
+                                          pg.transform.scale(pg.image.load('sprites/player_walking_2.png').convert_alpha(), (96, 96))])
+    player_walking_sprites_left = cycle([pg.transform.flip(pg.transform.scale(pg.image.load('sprites/player_walking_1.png').convert_alpha(), (96, 96)), True, False),
+                                          pg.transform.flip(pg.transform.scale(pg.image.load('sprites/player_walking_2.png').convert_alpha(), (96, 96)), True, False)])
+    acceleration = 0.8
     friction = -0.12
     base_hearts = 3
+    immunity_frames_after_hit = 120
     weapons = cycle([Arrow, ThrowingAxe])
 
     def __init__(self):
         super().__init__()
-        self.image = self.player_sprite
+        self.image = self.player_idle_sprite_right
         self.rect = self.image.get_bounding_rect()
         self.pos = Vec((WIDTH / 2, HEIGHT / 2))
         self.vel = Vec(0, 0)
@@ -57,11 +64,19 @@ class Player(pg.sprite.Sprite):
         self.hearts = self.base_hearts
 
     def update(self):
+        self.apply_appropriate_image()
         self.move()
         if self.immunity:
             self.immunity -= 1
         if self.weapon_cooldown:
             self.weapon_cooldown -= 1
+
+    def apply_appropriate_image(self):
+        if abs(self.vel.x) > 0.5 or abs(self.vel.y) > 0.5:
+            if FRAME_NUMBER % int(10 / self.acceleration) == 0:
+                self.image = next(self.player_walking_sprites_right) if self.vel.x >= 0 else next(self.player_walking_sprites_left)
+        else:
+            self.image = self.player_idle_sprite_right if self.vel.x >= 0 else self.player_idle_sprite_left
 
     def switch_weapon(self):
         self.current_weapon = next(self.weapons)
@@ -85,14 +100,12 @@ class Player(pg.sprite.Sprite):
 
         if self.pos.x > WIDTH:
             self.pos.x = WIDTH
-        if self.pos.x < 0:
+        elif self.pos.x < 0:
             self.pos.x = 0
-
-        if self.pos.y > HEIGHT + PLAYER_SPRITE_SIZE / 2:
-            self.pos.y = HEIGHT + PLAYER_SPRITE_SIZE / 2
-        if self.pos.y < 0 + PLAYER_SPRITE_SIZE / 2:
-            self.pos.y = 0 + PLAYER_SPRITE_SIZE / 2
-
+        if self.pos.y > HEIGHT:
+            self.pos.y = HEIGHT
+        elif self.pos.y < 0:
+            self.pos.y = 0
         self.rect.center = self.pos
 
     def kill_player(self):
@@ -103,26 +116,35 @@ class Player(pg.sprite.Sprite):
 
 
 class Enemy(pg.sprite.Sprite):
-    enemy_sprite = pg.transform.scale(pg.image.load('sprites/ninja.png').convert_alpha(), (128, 128))
     enemy_dead_sprite = pg.transform.scale(pg.image.load('sprites/ninja_dead.png').convert_alpha(), (128, 128))
+    enemy_walking_sprites_right = cycle([pg.transform.scale(pg.image.load('sprites/ninja_walking_1.png').convert_alpha(), (128, 128)),
+                                         pg.transform.scale(pg.image.load('sprites/ninja_walking_2.png').convert_alpha(), (128, 128))])
+    enemy_walking_sprites_left = cycle([pg.transform.flip(pg.transform.scale(pg.image.load('sprites/ninja_walking_1.png').convert_alpha(), (128, 128)), True, False),
+                                        pg.transform.flip(pg.transform.scale(pg.image.load('sprites/ninja_walking_2.png').convert_alpha(), (128, 128)), True, False)])
 
     base_speed = 1
     base_health = 100
 
     def __init__(self, position):
         super().__init__()
-        self.image = self.enemy_sprite
+        self.image = next(self.enemy_walking_sprites_right)
         self.rect = self.image.get_bounding_rect()
 
         self.pos = Vec(position)
-        self.vel = Vec(0, 0)
-        self.acc = Vec(0, 0)
+        self.direction = Vec(0, 0)
 
         self.health = self.base_health
         self.speed = self.base_speed
         self.is_active = True
 
+    def apply_appropriate_image(self):
+        if not self.is_active:
+            self.image = self.enemy_dead_sprite
+        elif FRAME_NUMBER % 10 == 0:
+            self.image = next(self.enemy_walking_sprites_left) if self.direction.x > 0 else next(self.enemy_walking_sprites_right)
+
     def update(self, player_pos, sprites):
+        self.apply_appropriate_image()
         self.move(player_pos)
         self.check_for_damage(sprites)
 
@@ -145,8 +167,8 @@ class Enemy(pg.sprite.Sprite):
         if self.is_active:
             vector = self.pos - player_pos
             vector_length = sqrt(vector[0] ** 2 + vector[1] ** 2)
-            direction = vector / vector_length
-            self.pos -= direction * self.speed
+            self.direction = vector / vector_length
+            self.pos -= self.direction * self.speed
             self.rect.center = self.pos
             speed_regain_ratio = 0.1  # TODO: check if speed regain after knock back should be parametrized based on enemy size/weight
             self.speed += (self.base_speed - self.speed) * speed_regain_ratio
@@ -173,7 +195,7 @@ class Enemy(pg.sprite.Sprite):
                 sprite.hearts -= 1
                 if sprite.hearts <= 0 and sprite.is_active:
                     sprite.kill_player()
-                sprite.immunity = 120
+                sprite.immunity = Player.immunity_frames_after_hit
 
 
 class Crosshair(pg.sprite.Sprite):
@@ -275,6 +297,8 @@ if __name__ == '__main__':
                    f'{player.weapon_cooldown=}\n' \
                    f'{player.pos.x=}\n' \
                    f'{player.pos.y=}\n' \
+                   f'{player.acc=}\n' \
+                   f'{player.vel=}\n' \
 
             display_text(DISPLAY_SURFACE, text, (20, 20), FONT)
 

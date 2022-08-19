@@ -7,7 +7,6 @@ WIDTH = 1920
 HEIGHT = 1080
 FPS = 60
 SPAWN_ENEMY_EVERY_N_FRAMES = 150
-print(pg.font.get_fonts())
 FONT = pg.font.SysFont('consolas', 20, bold=True)
 DISPLAY_SURFACE = pg.display.set_mode((WIDTH, HEIGHT))
 DEBUG_SHOW_INFO = True
