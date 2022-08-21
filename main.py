@@ -8,11 +8,12 @@ import pygame as pg
 from pygame.locals import K_ESCAPE, K_SPACE, MOUSEMOTION, KEYDOWN
 from pygame.locals import K_UP, K_LEFT, K_DOWN, K_RIGHT
 from pygame.locals import K_w, K_a, K_s, K_d
-from pygame.locals import K_F1, K_F2
+from pygame.locals import K_F1, K_F2, K_F3
 from pygame.math import Vector2 as Vec
 
-from settings import WIDTH, HEIGHT, DISPLAY_SURFACE, FONT, FPS, SPAWN_ENEMY_EVERY_N_FRAMES
-from settings import DEBUG_SHOW_INFO, DEBUG_SHOW_BOUNDING_BOX
+from settings import WIDTH, HEIGHT, DISPLAY_SURFACE, FONT, FPS, EPSILON  # constants
+from settings import SPAWN_ENEMY_EVERY_N_FRAMES  # game options
+from settings import DEBUG_SHOW_INFO, DEBUG_SHOW_BOUNDING_BOX, DEBUG_DRAW_GRID  # debug options
 from utils import rot_center
 from weapons import Projectile, Arrow, ThrowingAxe
 
@@ -109,9 +110,8 @@ class Player(pg.sprite.Sprite):
         self.rect.center = self.pos
 
     def kill_player(self):
-        print('player is dead')
         self.image, self.rect = rot_center(self.image, 90)
-        self.acceleration = 0
+        self.acceleration = EPSILON
         self.is_active = False
 
 
@@ -129,6 +129,7 @@ class Enemy(pg.sprite.Sprite):
         super().__init__()
         self.image = next(self.enemy_walking_sprites_right)
         self.rect = self.image.get_bounding_rect()
+        self.rect.width -= 40
 
         self.pos = Vec(position)
         self.direction = Vec(0, 0)
@@ -212,7 +213,23 @@ class Crosshair(pg.sprite.Sprite):
         self.rect.center = self.pos
 
 
-def spawn_random_enemy():
+class Obstacle(pg.sprite.Sprite):
+    sprite: pg.surface.Surface
+
+    def __init__(self, position):
+        super().__init__()
+        self.image = self.sprite
+        self.rect = self.image.get_bounding_rect()
+
+        self.pos = Vec(position)
+        self.rect.center = self.pos
+
+
+class Rock(Obstacle):
+    sprite = pg.transform.scale(pg.image.load('sprites/rock.png').convert_alpha(), (64, 64))
+
+
+def get_random_enemy():
     enemy_class = Enemy
     match random.choice([1, 2, 3, 4]):
         case 1:  # top
@@ -225,6 +242,11 @@ def spawn_random_enemy():
             return enemy_class((0, randrange(HEIGHT)))
 
 
+def spawn_rocks(count, all_sprites_group: pg.sprite.Group):
+    for i in range(count):
+        all_sprites_group.add(Rock((randrange(WIDTH), randrange(HEIGHT))))
+
+
 def display_text(surface, text_to_display, pos, font, font_color=pg.Color('black')):
     lines = text_to_display.splitlines()
     font_height = font.get_height()
@@ -233,6 +255,14 @@ def display_text(surface, text_to_display, pos, font, font_color=pg.Color('black
         line_surface = font.render(line, 0, font_color)
         surface.blit(line_surface, (pos_x, pos_y))
         pos_y += font_height
+
+
+def draw_grid():
+    block_size = 64
+    for x in range(-1, WIDTH, block_size-1):
+        for y in range(-1, HEIGHT, block_size-1):
+            rect = pg.Rect(x, y, block_size, block_size)
+            pg.draw.rect(DISPLAY_SURFACE, pg.color.Color('white'), rect, 1)
 
 
 if __name__ == '__main__':
@@ -247,6 +277,8 @@ if __name__ == '__main__':
     all_sprites.add(player)
     all_sprites.add(crosshair)
 
+    spawn_rocks(5, all_sprites)
+
     FRAME_NUMBER = 0
     while True:
         for event in pg.event.get():
@@ -260,6 +292,8 @@ if __name__ == '__main__':
                     DEBUG_SHOW_INFO = not DEBUG_SHOW_INFO
                 elif event.key == K_F2:
                     DEBUG_SHOW_BOUNDING_BOX = not DEBUG_SHOW_BOUNDING_BOX
+                elif event.key == K_F3:
+                    DEBUG_DRAW_GRID = not DEBUG_DRAW_GRID
             elif event.type == MOUSEMOTION:
                 crosshair.update_position(event.pos)
         if pg.mouse.get_pressed()[0] and not player.weapon_cooldown:
@@ -269,8 +303,11 @@ if __name__ == '__main__':
             all_sprites.add(projectile)
         DISPLAY_SURFACE.fill(pg.Color('olivedrab4'))
 
+        if DEBUG_DRAW_GRID:
+            draw_grid()
+
         if FRAME_NUMBER % SPAWN_ENEMY_EVERY_N_FRAMES == 0:
-            enemy = spawn_random_enemy()
+            enemy = get_random_enemy()
             all_sprites.add(enemy)
 
         player.update()
