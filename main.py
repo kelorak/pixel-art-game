@@ -252,7 +252,7 @@ def display_text(surface, text_to_display, pos, font, font_color=pg.Color('black
     font_height = font.get_height()
     pos_x, pos_y = pos
     for line in lines:
-        line_surface = font.render(line, 0, font_color)
+        line_surface = font.render(line, False, font_color)
         surface.blit(line_surface, (pos_x, pos_y))
         pos_y += font_height
 
