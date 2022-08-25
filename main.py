@@ -7,12 +7,12 @@ from random import randrange
 import pygame as pg
 from pygame.locals import K_ESCAPE, K_SPACE, MOUSEMOTION, KEYDOWN
 from pygame.locals import K_UP, K_LEFT, K_DOWN, K_RIGHT
-from pygame.locals import K_w, K_a, K_s, K_d
+from pygame.locals import K_w, K_a, K_s, K_d, K_e
 from pygame.locals import K_F1, K_F2, K_F3
 from pygame.math import Vector2 as Vec
 
 from settings import WIDTH, HEIGHT, DISPLAY_SURFACE, FONT, FPS, EPSILON  # constants
-from settings import SPAWN_ENEMY_EVERY_N_FRAMES  # game options
+from settings import ENEMY_SPAWN_TIME, ENEMY_SPAWN_EVENT, BACKGROUND_COLOR  # game options
 from settings import DEBUG_SHOW_INFO, DEBUG_SHOW_BOUNDING_BOX, DEBUG_DRAW_GRID  # debug options
 from utils import rot_center
 from weapons import Projectile, Arrow, ThrowingAxe
@@ -273,6 +273,8 @@ if __name__ == '__main__':
     hearts = Hearts()
     crosshair = Crosshair()
 
+    pg.time.set_timer(ENEMY_SPAWN_EVENT, millis=ENEMY_SPAWN_TIME)
+
     all_sprites = pg.sprite.Group()
     all_sprites.add(player)
     all_sprites.add(crosshair)
@@ -288,6 +290,8 @@ if __name__ == '__main__':
                     sys.exit()
                 elif event.key == K_SPACE:
                     player.switch_weapon()
+                elif event.key == K_e:
+                    pg.event.post(pg.event.Event(ENEMY_SPAWN_EVENT))
                 elif event.key == K_F1:
                     DEBUG_SHOW_INFO = not DEBUG_SHOW_INFO
                 elif event.key == K_F2:
@@ -296,19 +300,19 @@ if __name__ == '__main__':
                     DEBUG_DRAW_GRID = not DEBUG_DRAW_GRID
             elif event.type == MOUSEMOTION:
                 crosshair.update_position(event.pos)
+            if event.type == ENEMY_SPAWN_EVENT:
+                enemy = get_random_enemy()
+                all_sprites.add(enemy)
+
         if pg.mouse.get_pressed()[0] and not player.weapon_cooldown:
             weapon_type = player.current_weapon
             projectile = weapon_type(player.pos, pg.mouse.get_pos())
             player.weapon_cooldown = weapon_type.cooldown
             all_sprites.add(projectile)
-        DISPLAY_SURFACE.fill(pg.Color('olivedrab4'))
+        DISPLAY_SURFACE.fill(BACKGROUND_COLOR)
 
         if DEBUG_DRAW_GRID:
             draw_grid()
-
-        if FRAME_NUMBER % SPAWN_ENEMY_EVERY_N_FRAMES == 0:
-            enemy = get_random_enemy()
-            all_sprites.add(enemy)
 
         player.update()
         hearts.update(player.hearts, player.base_hearts)
