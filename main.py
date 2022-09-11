@@ -1,61 +1,132 @@
-import random
+import csv
 import sys
 from itertools import cycle
 from math import sqrt
-from random import randrange
 
 import pygame as pg
 from pygame.locals import K_ESCAPE, K_SPACE, MOUSEMOTION, KEYDOWN
-from pygame.locals import K_UP, K_LEFT, K_DOWN, K_RIGHT
-from pygame.locals import K_w, K_a, K_s, K_d, K_e
 from pygame.locals import K_F1, K_F2, K_F3
+from pygame.locals import K_UP, K_LEFT, K_DOWN, K_RIGHT
+from pygame.locals import K_w, K_a, K_s, K_d
 from pygame.math import Vector2 as Vec
 
-from settings import WIDTH, HEIGHT, DISPLAY_SURFACE, FONT, FPS, EPSILON  # constants
-from settings import ENEMY_SPAWN_TIME, ENEMY_SPAWN_EVENT, BACKGROUND_COLOR  # game options
+from settings import BACKGROUND_COLOR, WIDTH, HEIGHT, TILE_SIZE, SPRITE_SHEET_ASSET_SIZE, DISPLAY_SURFACE, FONT, FPS, EPSILON, ROWS, COLS  # constants
 from settings import DEBUG_SHOW_INFO, DEBUG_SHOW_BOUNDING_BOX, DEBUG_DRAW_GRID  # debug options
 from utils import rot_center
 from weapons import Projectile, Arrow, ThrowingAxe
 
 
-PLAYER_SPRITE_SIZE = 30
+def image_at(sheet: pg.surface.Surface, row: int, col: int):
+    offset = 16
+    ratio = TILE_SIZE / offset
+    image = pg.Surface((offset, offset)).convert_alpha()
+    image.blit(sheet, (0, 0), ((col * offset), row * offset, offset, offset))
+    image = pg.transform.scale(image, (offset * ratio, offset * ratio))
+    image.set_colorkey((0, 0, 0))
+
+    return image
+
+
+world_sheet = pg.image.load(r'Sprite-0001.png').convert_alpha()
+img_list = []
+rows_count = int(world_sheet.get_height() / SPRITE_SHEET_ASSET_SIZE)
+cols_count = int(world_sheet.get_width() / SPRITE_SHEET_ASSET_SIZE)
+for row_idx in range(rows_count):
+    for col_idx in range(cols_count):
+        img = image_at(world_sheet, row_idx, col_idx)
+        img_list.append(img)
+
+
+class World:
+    def __init__(self):
+        self.ground_tiles_list = []
+        self.obstacle_tiles_list = []
+
+    def process_data(self, data):
+        # enemies_list = []
+        # iterate through each value in level data file
+        for y, row in enumerate(data):
+            for x, tile_id in enumerate(row):
+                if tile_id >= 0:
+                    img = img_list[tile_id]
+                    img_rect = img.get_rect()
+                    img_rect.x = x * TILE_SIZE
+                    img_rect.y = y * TILE_SIZE
+                    tile_data = (img, img_rect)
+                    if tile_id == 0:
+                        player = Player(pos=(x * TILE_SIZE, y * TILE_SIZE))
+
+                        # Add default tile under the player:
+                        def_tile_img = img_list[1]
+                        img_rect = def_tile_img.get_rect()
+                        img_rect.x = x * TILE_SIZE
+                        img_rect.y = y * TILE_SIZE
+                        tile_data = (def_tile_img, img_rect)
+                        self.ground_tiles_list.append(tile_data)
+                    elif tile_id == 1:
+                        self.ground_tiles_list.append(tile_data)
+                    elif tile_id == 5:
+                        enemy = Enemy(position=(x * TILE_SIZE, y * TILE_SIZE))
+                        # Add default tile under the enemy:
+                        def_tile_img = img_list[1]
+                        img_rect = def_tile_img.get_rect()
+                        img_rect.x = x * TILE_SIZE
+                        img_rect.y = y * TILE_SIZE
+                        tile_data = (def_tile_img, img_rect)
+                        self.ground_tiles_list.append(tile_data)
+                        all_sprites.add(enemy)
+                    elif 2 <= tile_id <= 15:
+                        self.obstacle_tiles_list.append(tile_data)
+
+        return player
+
+    def draw(self):
+        for t in self.ground_tiles_list + self.obstacle_tiles_list:
+            DISPLAY_SURFACE.blit(t[0], t[1])
 
 
 class Hearts(pg.sprite.Sprite):
-    heart_size = 48
-    full_heart = pg.transform.scale(pg.image.load('sprites/heart_full.png').convert_alpha(), (heart_size, heart_size))
-    empty_heart = pg.transform.scale(pg.image.load('sprites/heart_empty.png').convert_alpha(), (heart_size, heart_size))
+    full_heart = pg.transform.scale(pg.image.load('sprites/heart_full.png').convert_alpha(), (TILE_SIZE, TILE_SIZE))
+    empty_heart = pg.transform.scale(pg.image.load('sprites/heart_empty.png').convert_alpha(), (TILE_SIZE, TILE_SIZE))
 
     def update(self, current_number_of_hearts, base_number_of_hearts):
         empty_hearts = base_number_of_hearts - current_number_of_hearts
-        start_pos = Vec((0, HEIGHT - self.heart_size))
+        start_pos = Vec((0, HEIGHT - TILE_SIZE))
         for _ in range(current_number_of_hearts):
             DISPLAY_SURFACE.blit(self.full_heart, start_pos)
-            start_pos.x += self.heart_size
+            start_pos.x += TILE_SIZE
         for _ in range(empty_hearts):
             DISPLAY_SURFACE.blit(self.empty_heart, start_pos)
-            start_pos.x += self.heart_size
+            start_pos.x += TILE_SIZE
 
 
 class Player(pg.sprite.Sprite):
     # TODO: all these images should be loaded from sprite sheet:
-    player_idle_sprite_right = pg.transform.scale(pg.image.load('sprites/player.png').convert_alpha(), (96, 96))
-    player_idle_sprite_left = pg.transform.flip(player_idle_sprite_right.copy(), True, False)
-    player_walking_sprites_right = cycle([pg.transform.scale(pg.image.load('sprites/player_walking_1.png').convert_alpha(), (96, 96)),
-                                          pg.transform.scale(pg.image.load('sprites/player_walking_2.png').convert_alpha(), (96, 96))])
-    player_walking_sprites_left = cycle([pg.transform.flip(pg.transform.scale(pg.image.load('sprites/player_walking_1.png').convert_alpha(), (96, 96)), True, False),
-                                          pg.transform.flip(pg.transform.scale(pg.image.load('sprites/player_walking_2.png').convert_alpha(), (96, 96)), True, False)])
-    acceleration = 0.8
+    player_idle_sprite_right = [pg.transform.scale(pg.image.load('sprites/player1.png').convert_alpha(), (TILE_SIZE, TILE_SIZE)),
+                                pg.transform.scale(pg.image.load('sprites/player2.png').convert_alpha(), (TILE_SIZE, TILE_SIZE)),
+                                pg.transform.scale(pg.image.load('sprites/player3.png').convert_alpha(), (TILE_SIZE, TILE_SIZE)),
+                                pg.transform.scale(pg.image.load('sprites/player4.png').convert_alpha(), (TILE_SIZE, TILE_SIZE))]
+    player_idle_sprite_left = [pg.transform.flip(x.copy(), True, False) for x in player_idle_sprite_right]
+    player_walking_sprite_right = player_idle_sprite_right  # to change when animation for walking available
+    player_walking_sprite_left = player_idle_sprite_left  # to change when animation for walking available
+
+    player_idle_sprite_right = cycle(player_idle_sprite_right)
+    player_idle_sprite_left = cycle(player_idle_sprite_left)
+    player_walking_sprite_right = cycle(player_walking_sprite_right)
+    player_walking_sprite_left = cycle(player_walking_sprite_left)
+
+    acceleration = 0.5
     friction = -0.12
     base_hearts = 3
     immunity_frames_after_hit = 120
     weapons = cycle([Arrow, ThrowingAxe])
 
-    def __init__(self):
+    def __init__(self, pos):
         super().__init__()
-        self.image = self.player_idle_sprite_right
-        self.rect = self.image.get_bounding_rect()
-        self.pos = Vec((WIDTH / 2, HEIGHT / 2))
+        self.image = next(self.player_idle_sprite_right)
+        self.rect = self.image.get_rect()
+        self.pos = Vec(pos)
+        self.rect.topleft = pos
         self.vel = Vec(0, 0)
         self.acc = Vec(0, 0)
         self.immunity = 0
@@ -73,11 +144,13 @@ class Player(pg.sprite.Sprite):
             self.weapon_cooldown -= 1
 
     def apply_appropriate_image(self):
+        animation_frame_time = 300
+        frame_update_count = int(animation_frame_time / (1000 / FPS))
         if abs(self.vel.x) > 0.5 or abs(self.vel.y) > 0.5:
             if FRAME_NUMBER % int(10 / self.acceleration) == 0:
-                self.image = next(self.player_walking_sprites_right) if self.vel.x >= 0 else next(self.player_walking_sprites_left)
-        else:
-            self.image = self.player_idle_sprite_right if self.vel.x >= 0 else self.player_idle_sprite_left
+                self.image = next(self.player_walking_sprite_right) if self.vel.x >= 0 else next(self.player_walking_sprite_left)
+        elif FRAME_NUMBER % frame_update_count == 0:
+            self.image = next(self.player_idle_sprite_right) if self.vel.x >= 0 else next(self.player_idle_sprite_left)
 
     def switch_weapon(self):
         self.current_weapon = next(self.weapons)
@@ -97,8 +170,9 @@ class Player(pg.sprite.Sprite):
 
         self.acc += self.vel * self.friction
         self.vel += self.acc
-        self.pos += self.vel + 0.5 * self.acc
+        dx, dy = self.vel + 0.5 * self.acc
 
+        # check for collision with screen boundaries - sanity check, it should be handled by level map design
         if self.pos.x > WIDTH:
             self.pos.x = WIDTH
         elif self.pos.x < 0:
@@ -107,29 +181,40 @@ class Player(pg.sprite.Sprite):
             self.pos.y = HEIGHT
         elif self.pos.y < 0:
             self.pos.y = 0
-        self.rect.center = self.pos
+        self.rect.topleft = self.pos
+
+        # check for collision with obstacles
+        for tile in world.obstacle_tiles_list:
+            if tile[1].colliderect(self.rect.x + dx, self.rect.y, TILE_SIZE, TILE_SIZE):
+                dx = 0
+                # self.pos.x = 280 # TODO: find where the collision is and then set the position to the closest integer
+                self.vel.x = 0
+                self.acc.x = 0
+            if tile[1].colliderect(self.rect.x, self.rect.y + dy, TILE_SIZE, TILE_SIZE):
+                    dy = 0
+                    self.vel.y = 0
+                    self.acc.y = 0
+        self.pos += (dx, dy)
+        self.rect.topleft = self.pos
 
     def kill_player(self):
         self.image, self.rect = rot_center(self.image, 90)
-        self.acceleration = EPSILON
+        self.acceleration = EPSILON  # TODO: why didn't I set it to zero? To check
         self.is_active = False
 
 
 class Enemy(pg.sprite.Sprite):
-    enemy_dead_sprite = pg.transform.scale(pg.image.load('sprites/ninja_dead.png').convert_alpha(), (128, 128))
-    enemy_walking_sprites_right = cycle([pg.transform.scale(pg.image.load('sprites/ninja_walking_1.png').convert_alpha(), (128, 128)),
-                                         pg.transform.scale(pg.image.load('sprites/ninja_walking_2.png').convert_alpha(), (128, 128))])
-    enemy_walking_sprites_left = cycle([pg.transform.flip(pg.transform.scale(pg.image.load('sprites/ninja_walking_1.png').convert_alpha(), (128, 128)), True, False),
-                                        pg.transform.flip(pg.transform.scale(pg.image.load('sprites/ninja_walking_2.png').convert_alpha(), (128, 128)), True, False)])
-
-    base_speed = 1
+    base_speed = 0.1
     base_health = 100
 
     def __init__(self, position):
+        enemy_idle_sprite_sheet = pg.image.load('sprites/enemy_standing_front.png').convert_alpha()
+        self.enemy_idle_animation = cycle([image_at(enemy_idle_sprite_sheet, 0, i) for i in range(3)])
+
         super().__init__()
-        self.image = next(self.enemy_walking_sprites_right)
-        self.rect = self.image.get_bounding_rect()
-        self.rect.width -= 40
+        self.image = next(self.enemy_idle_animation)
+        self.rect = self.image.get_rect()
+        self.rect.topleft = position
 
         self.pos = Vec(position)
         self.direction = Vec(0, 0)
@@ -139,15 +224,17 @@ class Enemy(pg.sprite.Sprite):
         self.is_active = True
 
     def apply_appropriate_image(self):
+        # TODO: now no animations available besides idle, dead enemy and walking enemy to add later
         if not self.is_active:
-            self.image = self.enemy_dead_sprite
+            self.image = next(self.enemy_idle_animation)
         elif FRAME_NUMBER % 10 == 0:
-            self.image = next(self.enemy_walking_sprites_left) if self.direction.x > 0 else next(self.enemy_walking_sprites_right)
+            self.image = next(self.enemy_idle_animation) if self.direction.x > 0 else next(self.enemy_idle_animation)
 
     def update(self, player_pos, sprites):
         self.apply_appropriate_image()
         self.move(player_pos)
         self.check_for_damage(sprites)
+        self.show_health_bar()
 
     def show_health_bar(self):
         health_fraction = self. health / self.base_health
@@ -170,11 +257,9 @@ class Enemy(pg.sprite.Sprite):
             vector_length = sqrt(vector[0] ** 2 + vector[1] ** 2)
             self.direction = vector / vector_length
             self.pos -= self.direction * self.speed
-            self.rect.center = self.pos
+            self.rect.topleft = self.pos
             speed_regain_ratio = 0.1  # TODO: check if speed regain after knock back should be parametrized based on enemy size/weight
             self.speed += (self.base_speed - self.speed) * speed_regain_ratio
-
-            self.show_health_bar()
 
     def check_for_damage(self, sprites):
         for sprite in sprites:
@@ -187,7 +272,6 @@ class Enemy(pg.sprite.Sprite):
                 sprite.is_active = False  # TODO: projectile stay in enemy when hit, decrease the bounding box? Projectile should be attached to enemy when he's moving
                 if self.health <= 0:
                     self.is_active = False
-                    self.image = self.enemy_dead_sprite
             elif isinstance(sprite, Player) \
                     and self.is_active \
                     and not sprite.immunity \
@@ -206,49 +290,24 @@ class Crosshair(pg.sprite.Sprite):
         super().__init__()
         self.image = self.crosshair_sprite
         self.rect = self.image.get_bounding_rect()
-        self.pos = Vec((WIDTH / 2, HEIGHT / 2))
+        self.pos = (0, 0)
 
     def update_position(self, pos):
         self.pos = pos
         self.rect.center = self.pos
 
 
-class Obstacle(pg.sprite.Sprite):
-    sprite: pg.surface.Surface
-
-    def __init__(self, position):
-        super().__init__()
-        self.image = self.sprite
-        self.rect = self.image.get_bounding_rect()
-
-        self.pos = Vec(position)
-        self.rect.center = self.pos
-
-
-class Rock(Obstacle):
-    sprite = pg.transform.scale(pg.image.load('sprites/rock.png').convert_alpha(), (64, 64))
-
-
-def get_random_enemy():
-    enemy_class = Enemy
-    match random.choice([1, 2, 3, 4]):
-        case 1:  # top
-            return enemy_class((randrange(WIDTH), 0))
-        case 2:  # right
-            return enemy_class((WIDTH, randrange(HEIGHT)))
-        case 3:  # bottom
-            return enemy_class((randrange(WIDTH), HEIGHT))
-        case 4:  # left
-            return enemy_class((0, randrange(HEIGHT)))
-
-
-def spawn_rocks(count, all_sprites_group: pg.sprite.Group):
-    for i in range(count):
-        all_sprites_group.add(Rock((randrange(WIDTH), randrange(HEIGHT))))
-
-
-def display_text(surface, text_to_display, pos, font, font_color=pg.Color('black')):
-    lines = text_to_display.splitlines()
+def display_debug_text(surface, pos, font, font_color=pg.Color('black')):
+    text = f'{FramePerSec.get_fps()=}\n' \
+           f'{FRAME_NUMBER=}\n' \
+           f'{player.hearts=}\n' \
+           f'{player.immunity=}\n' \
+           f'{player.weapon_cooldown=}\n' \
+           f'{player.pos.x=}\n' \
+           f'{player.pos.y=}\n' \
+           f'{player.acc=}\n' \
+           f'{player.vel=}\n'
+    lines = text.splitlines()
     font_height = font.get_height()
     pos_x, pos_y = pos
     for line in lines:
@@ -258,28 +317,46 @@ def display_text(surface, text_to_display, pos, font, font_color=pg.Color('black
 
 
 def draw_grid():
-    block_size = 64
-    for x in range(-1, WIDTH, block_size-1):
-        for y in range(-1, HEIGHT, block_size-1):
-            rect = pg.Rect(x, y, block_size, block_size)
-            pg.draw.rect(DISPLAY_SURFACE, pg.color.Color('white'), rect, 1)
+    block_size = TILE_SIZE
+    for x in range(0, WIDTH, block_size):
+        for y in range(0, HEIGHT, block_size):
+            rect = pg.Rect(x-1, y-1, block_size+1, block_size+1)
+            pg.draw.rect(DISPLAY_SURFACE, pg.color.Color('magenta'), rect, 1)
+
+
+def draw_bounding_boxes():
+    for sprite in all_sprites:
+        if hasattr(sprite, 'is_active'):
+            bounding_box_color = 'green' if sprite.is_active else 'red'
+            pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bounding_box_color), sprite.rect, 1)
 
 
 if __name__ == '__main__':
     FramePerSec = pg.time.Clock()
 
-    pg.display.set_caption("game")
-    player = Player()
+    pg.display.set_caption('game')
+
+    # create empty tile list
+    world_data = []
+    for row in range(ROWS):
+        r = [-1] * COLS
+        world_data.append(r)
+    # load in level data and create world
+    with open(f'level1.csv', newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',')
+        for x, row in enumerate(reader):
+            for y, tile in enumerate(row):
+                world_data[x][y] = int(tile)
+
+    all_sprites = pg.sprite.Group()
+    world = World()
+    player = world.process_data(world_data)
+
     hearts = Hearts()
     crosshair = Crosshair()
 
-    pg.time.set_timer(ENEMY_SPAWN_EVENT, millis=ENEMY_SPAWN_TIME)
-
-    all_sprites = pg.sprite.Group()
     all_sprites.add(player)
     all_sprites.add(crosshair)
-
-    spawn_rocks(5, all_sprites)
 
     FRAME_NUMBER = 0
     while True:
@@ -290,8 +367,6 @@ if __name__ == '__main__':
                     sys.exit()
                 elif event.key == K_SPACE:
                     player.switch_weapon()
-                elif event.key == K_e:
-                    pg.event.post(pg.event.Event(ENEMY_SPAWN_EVENT))
                 elif event.key == K_F1:
                     DEBUG_SHOW_INFO = not DEBUG_SHOW_INFO
                 elif event.key == K_F2:
@@ -300,9 +375,6 @@ if __name__ == '__main__':
                     DEBUG_DRAW_GRID = not DEBUG_DRAW_GRID
             elif event.type == MOUSEMOTION:
                 crosshair.update_position(event.pos)
-            if event.type == ENEMY_SPAWN_EVENT:
-                enemy = get_random_enemy()
-                all_sprites.add(enemy)
 
         if pg.mouse.get_pressed()[0] and not player.weapon_cooldown:
             weapon_type = player.current_weapon
@@ -311,11 +383,13 @@ if __name__ == '__main__':
             all_sprites.add(projectile)
         DISPLAY_SURFACE.fill(BACKGROUND_COLOR)
 
-        if DEBUG_DRAW_GRID:
-            draw_grid()
+        world.draw()
 
         player.update()
         hearts.update(player.hearts, player.base_hearts)
+
+        if DEBUG_DRAW_GRID:
+            draw_grid()
 
         non_enemy_sprites = [sprite for sprite in all_sprites if not isinstance(sprite, Enemy)]
         for entity in all_sprites:
@@ -326,23 +400,9 @@ if __name__ == '__main__':
             DISPLAY_SURFACE.blit(entity.image, entity.rect)
 
         if DEBUG_SHOW_BOUNDING_BOX:
-            for entity in all_sprites:
-                if hasattr(entity, 'is_active'):
-                    bounding_box_color = 'green' if entity.is_active else 'red'
-                    pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bounding_box_color), entity.rect, 1)
+            draw_bounding_boxes()
         if DEBUG_SHOW_INFO:
-            text = f'{FramePerSec.get_fps()=}\n' \
-                   f'{FRAME_NUMBER=}\n' \
-                   f'{player.hearts=}\n' \
-                   f'{player.immunity=}\n' \
-                   f'{player.weapon_cooldown=}\n' \
-                   f'{player.pos.x=}\n' \
-                   f'{player.pos.y=}\n' \
-                   f'{player.acc=}\n' \
-                   f'{player.vel=}\n' \
-
-            display_text(DISPLAY_SURFACE, text, (20, 20), FONT)
-
+            display_debug_text(DISPLAY_SURFACE, (20, 20), FONT)
         FRAME_NUMBER += 1
         pg.display.update()
         FramePerSec.tick(FPS)

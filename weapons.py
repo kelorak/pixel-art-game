@@ -2,7 +2,7 @@ from math import sqrt
 
 import pygame as pg
 
-from settings import WIDTH, HEIGHT
+from settings import WIDTH, HEIGHT, TILE_SIZE
 from utils import angle_between_vectors, rot_center
 
 
@@ -46,7 +46,7 @@ class Projectile(pg.sprite.Sprite):
 
 
 class Arrow(Projectile):
-    sprite = pg.transform.scale(pg.image.load('sprites/arrow.png').convert_alpha(), (48, 48))
+    sprite = pg.transform.scale(pg.image.load('sprites/arrow.png').convert_alpha(), (TILE_SIZE, TILE_SIZE))
     speed = 20
     speed_decay = 0.12
     damage = 34
@@ -55,7 +55,7 @@ class Arrow(Projectile):
 
 
 class ThrowingAxe(Projectile):
-    sprite = pg.transform.scale(pg.image.load('sprites/axe.png').convert_alpha(), (64, 64))
+    sprite = pg.transform.scale(pg.image.load('sprites/axe.png').convert_alpha(), (TILE_SIZE, TILE_SIZE))
     speed = 10
     speed_decay = 0.15
     damage = 50
