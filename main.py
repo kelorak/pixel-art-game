@@ -2,6 +2,8 @@ import csv
 import sys
 from itertools import cycle
 from math import sqrt
+import psutil
+import math
 
 import pygame as pg
 from pygame.locals import K_ESCAPE, K_SPACE, MOUSEMOTION, KEYDOWN
@@ -10,7 +12,7 @@ from pygame.locals import K_UP, K_LEFT, K_DOWN, K_RIGHT
 from pygame.locals import K_w, K_a, K_s, K_d
 from pygame.math import Vector2 as Vec
 
-from settings import BACKGROUND_COLOR, WIDTH, HEIGHT, TILE_SIZE, SPRITE_SHEET_ASSET_SIZE, DISPLAY_SURFACE, FONT, FPS, EPSILON, ROWS, COLS  # constants
+from settings import BACKGROUND_COLOR, WIDTH, HEIGHT, TILE_SIZE, SPRITE_SHEET_ASSET_SIZE, DISPLAY_SURFACE, FONT, FPS, EPSILON, ROWS, COLS, FRAMES_PER_ANIMATION_CHANGE  # constants
 from settings import DEBUG_SHOW_INFO, DEBUG_SHOW_BOUNDING_BOX, DEBUG_DRAW_GRID  # debug options
 from utils import rot_center
 from weapons import Projectile, Arrow, ThrowingAxe
@@ -191,9 +193,9 @@ class Player(pg.sprite.Sprite):
                 self.vel.x = 0
                 self.acc.x = 0
             if tile[1].colliderect(self.rect.x, self.rect.y + dy, TILE_SIZE, TILE_SIZE):
-                    dy = 0
-                    self.vel.y = 0
-                    self.acc.y = 0
+                dy = 0
+                self.vel.y = 0
+                self.acc.y = 0
         self.pos += (dx, dy)
         self.rect.topleft = self.pos
 
@@ -204,12 +206,24 @@ class Player(pg.sprite.Sprite):
 
 
 class Enemy(pg.sprite.Sprite):
-    base_speed = 0.1
+    base_speed = 0.5
     base_health = 100
+    sight = 8
+
+    action_idle = 0
+    action_move = 1
+    action_attack = 2
+    action_die = 3
 
     def __init__(self, position):
         enemy_idle_sprite_sheet = pg.image.load('sprites/enemy_standing_front.png').convert_alpha()
+        enemy_walking_sprite_sheet = pg.image.load('sprites/enemy_walking.png').convert_alpha()
+        enemy_attack_sprite_sheet = pg.image.load('sprites/enemy_attack.png').convert_alpha()
         self.enemy_idle_animation = cycle([image_at(enemy_idle_sprite_sheet, 0, i) for i in range(3)])
+        self.enemy_move_left_animation = cycle([image_at(enemy_walking_sprite_sheet, 0, i) for i in range(5)])
+        self.enemy_move_right_animation = cycle([pg.transform.flip(image_at(enemy_walking_sprite_sheet, 0, i), True, False).convert_alpha() for i in range(5)])
+        self.enemy_attack_left_animation = cycle(reversed([image_at(enemy_attack_sprite_sheet, 0, i) for i in range(4)]))
+        self.enemy_attack_right_animation = cycle(reversed([pg.transform.flip(image_at(enemy_attack_sprite_sheet, 0, i), True, False).convert_alpha() for i in range(4)]))
 
         super().__init__()
         self.image = next(self.enemy_idle_animation)
@@ -222,19 +236,38 @@ class Enemy(pg.sprite.Sprite):
         self.health = self.base_health
         self.speed = self.base_speed
         self.is_active = True
+        self.action = self.action_idle
 
     def apply_appropriate_image(self):
-        # TODO: now no animations available besides idle, dead enemy and walking enemy to add later
-        if not self.is_active:
+        if not self.is_active:  # add animation for dead enemy
             self.image = next(self.enemy_idle_animation)
-        elif FRAME_NUMBER % 10 == 0:
-            self.image = next(self.enemy_idle_animation) if self.direction.x > 0 else next(self.enemy_idle_animation)
+        elif self.action == self.action_idle:
+            if FRAME_NUMBER % FRAMES_PER_ANIMATION_CHANGE == 0:
+                self.image = next(self.enemy_idle_animation) if self.direction.x > 0 else next(self.enemy_idle_animation)
+        elif self.action == self.action_move:
+            if FRAME_NUMBER % FRAMES_PER_ANIMATION_CHANGE == 0:
+                self.image = next(self.enemy_move_right_animation) if self.direction.x < 0 else next(self.enemy_move_left_animation)
+        elif self.action == self.action_attack:
+            if FRAME_NUMBER % FRAMES_PER_ANIMATION_CHANGE == 0:
+                self.image = next(self.enemy_attack_right_animation) if self.direction.x < 0 else next(self.enemy_attack_left_animation)
+        elif self.action == self.action_die:
+            self.kill()
 
     def update(self, player_pos, sprites):
+        self.update_action()
         self.apply_appropriate_image()
         self.move(player_pos)
         self.check_for_damage(sprites)
         self.show_health_bar()
+
+    def update_action(self):
+        distance_from_player = math.hypot(self.pos.x - player.pos.x, self.pos.y - player.pos.y)
+        if distance_from_player < TILE_SIZE:
+            self.action = self.action_attack
+        elif distance_from_player < TILE_SIZE * self.sight:
+            self.action = self.action_move
+        else:
+            self.action = self.action_idle
 
     def show_health_bar(self):
         health_fraction = self. health / self.base_health
@@ -246,13 +279,13 @@ class Enemy(pg.sprite.Sprite):
         else:
             bar_color = 'red'
 
-        bar_left = self.pos.x - self.rect.width / 2
-        bar_top = self.pos.y - self.rect.height
-        pg.draw.rect(DISPLAY_SURFACE, pg.color.Color('white'), pg.Rect(bar_left, bar_top, self.rect.width, 5),  1)
+        bar_left = self.pos.x
+        bar_top = self.pos.y - self.rect.height/4
+        pg.draw.rect(DISPLAY_SURFACE, pg.color.Color('black'), pg.Rect(bar_left, bar_top, self.rect.width + 1, 5),  1)
         pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bar_color), pg.Rect(bar_left + 1, bar_top + 1, health_fraction * (self.rect.width - 1), 3))
 
     def move(self, player_pos):
-        if self.is_active:
+        if self.is_active and self.action != self.action_idle:
             vector = self.pos - player_pos
             vector_length = sqrt(vector[0] ** 2 + vector[1] ** 2)
             self.direction = vector / vector_length
@@ -306,7 +339,9 @@ def display_debug_text(surface, pos, font, font_color=pg.Color('black')):
            f'{player.pos.x=}\n' \
            f'{player.pos.y=}\n' \
            f'{player.acc=}\n' \
-           f'{player.vel=}\n'
+           f'{player.vel=}\n' \
+           f'{ram_usage=}\n' \
+           f'{cpu_usage=}\n'
     lines = text.splitlines()
     font_height = font.get_height()
     pos_x, pos_y = pos
@@ -329,6 +364,10 @@ def draw_bounding_boxes():
         if hasattr(sprite, 'is_active'):
             bounding_box_color = 'green' if sprite.is_active else 'red'
             pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bounding_box_color), sprite.rect, 1)
+            if isinstance(sprite, Enemy):
+                pg.draw.circle(DISPLAY_SURFACE, pg.color.Color('blue'), sprite.rect.center, TILE_SIZE * sprite.sight, 1)
+                if not sprite.action == sprite.action_idle:
+                    pg.draw.aaline(DISPLAY_SURFACE, pg.color.Color('orange'), sprite.rect.center, player.rect.center, 1)
 
 
 if __name__ == '__main__':
@@ -402,6 +441,9 @@ if __name__ == '__main__':
         if DEBUG_SHOW_BOUNDING_BOX:
             draw_bounding_boxes()
         if DEBUG_SHOW_INFO:
+            if FRAME_NUMBER % 30 == 0:
+                ram_usage = round(psutil.virtual_memory().available * 100 / psutil.virtual_memory().total, 2)
+                cpu_usage = psutil.cpu_percent()
             display_debug_text(DISPLAY_SURFACE, (20, 20), FONT)
         FRAME_NUMBER += 1
         pg.display.update()
