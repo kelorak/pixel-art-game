@@ -45,8 +45,7 @@ class World:
         self.obstacle_tiles_list = []
 
     def process_data(self, data):
-        # enemies_list = []
-        # iterate through each value in level data file
+        # Iterate through each value in level data file
         for y, row in enumerate(data):
             for x, tile_id in enumerate(row):
                 if tile_id >= 0:
@@ -114,8 +113,8 @@ class Player(pg.sprite.Sprite):
                                 pg.transform.scale(pg.image.load('sprites/player3.png').convert_alpha(), (TILE_SIZE, TILE_SIZE)),
                                 pg.transform.scale(pg.image.load('sprites/player4.png').convert_alpha(), (TILE_SIZE, TILE_SIZE))]
     player_idle_sprite_left = [pg.transform.flip(x.copy(), True, False) for x in player_idle_sprite_right]
-    player_walking_sprite_right = player_idle_sprite_right  # to change when animation for walking available
-    player_walking_sprite_left = player_idle_sprite_left  # to change when animation for walking available
+    player_walking_sprite_right = player_idle_sprite_right  # TODO: change when animation for walking available
+    player_walking_sprite_left = player_idle_sprite_left  # TODO: change when animation for walking available
 
     player_idle_sprite_right = cycle(player_idle_sprite_right)
     player_idle_sprite_left = cycle(player_idle_sprite_left)
@@ -187,7 +186,7 @@ class Player(pg.sprite.Sprite):
         self.vel += self.acc
         dx, dy = self.vel + 0.5 * self.acc
 
-        # check for collision with screen boundaries - sanity check, it should be handled by level map design
+        # Check for collision with screen boundaries - sanity check, it should be handled by level map design
         if self.pos.x > WIDTH:
             self.pos.x = WIDTH
         elif self.pos.x < 0:
@@ -198,7 +197,7 @@ class Player(pg.sprite.Sprite):
             self.pos.y = 0
         self.rect.topleft = self.pos
 
-        # check for collision with obstacles
+        # Check for collision with obstacles
         shrunk_tile_ratio = 0.75  # compare rect collision with smaller tile for smoother movement near narrow passages
         shrunk_tile_size = (shrunk_tile_ratio * TILE_SIZE)
         shrunk_tile_offset = (((1 - shrunk_tile_ratio) / 2) * TILE_SIZE)
