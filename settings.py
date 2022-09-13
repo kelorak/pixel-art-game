@@ -19,5 +19,5 @@ BACKGROUND_COLOR = pg.Color('olivedrab4')
 FONT = pg.font.Font('font/Pixeltype.ttf', int(HEIGHT / 33))
 DISPLAY_SURFACE = pg.display.set_mode((WIDTH, HEIGHT))
 DEBUG_SHOW_INFO = True
-DEBUG_SHOW_BOUNDING_BOX = True
+DEBUG_SHOW_BOUNDING_BOX = False
 DEBUG_DRAW_GRID = False

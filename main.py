@@ -91,15 +91,20 @@ class Hearts(pg.sprite.Sprite):
     full_heart = pg.transform.scale(pg.image.load('sprites/heart_full.png').convert_alpha(), (TILE_SIZE, TILE_SIZE))
     empty_heart = pg.transform.scale(pg.image.load('sprites/heart_empty.png').convert_alpha(), (TILE_SIZE, TILE_SIZE))
 
-    def update(self, current_number_of_hearts, base_number_of_hearts):
-        empty_hearts = base_number_of_hearts - current_number_of_hearts
-        start_pos = Vec((0, HEIGHT - TILE_SIZE))
-        for _ in range(current_number_of_hearts):
-            DISPLAY_SURFACE.blit(self.full_heart, start_pos)
+    def update(self):
+        self.image = pg.Surface((TILE_SIZE * player.base_hearts, TILE_SIZE))
+        self.image.set_colorkey(pg.color.Color('black'))
+
+        empty_hearts = player.base_hearts - player.hearts
+        start_pos = Vec((0, 0))
+        for _ in range(player.hearts):
+            self.image.blit(self.full_heart, start_pos)
             start_pos.x += TILE_SIZE
         for _ in range(empty_hearts):
-            DISPLAY_SURFACE.blit(self.empty_heart, start_pos)
+            self.image.blit(self.empty_heart, start_pos)
             start_pos.x += TILE_SIZE
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (0, HEIGHT - TILE_SIZE)
 
 
 class Player(pg.sprite.Sprite):
@@ -138,6 +143,14 @@ class Player(pg.sprite.Sprite):
         self.hearts = self.base_hearts
 
     def update(self):
+        for e in events:
+            if e.type == KEYDOWN and e.key == K_SPACE:
+                self.switch_weapon()
+        if pg.mouse.get_pressed()[0] and not self.weapon_cooldown:
+            weapon_type = self.current_weapon
+            projectile = weapon_type(self.pos, pg.mouse.get_pos())
+            self.weapon_cooldown = weapon_type.cooldown
+            all_sprites.add(projectile)
         self.apply_appropriate_image()
         self.move()
         if self.immunity:
@@ -186,17 +199,20 @@ class Player(pg.sprite.Sprite):
         self.rect.topleft = self.pos
 
         # check for collision with obstacles
+        shrunk_tile_ratio = 0.75  # compare rect collision with smaller tile for smoother movement near narrow passages
+        shrunk_tile_size = (shrunk_tile_ratio * TILE_SIZE)
+        shrunk_tile_offset = (((1 - shrunk_tile_ratio) / 2) * TILE_SIZE)
+        # TODO: filter out tile list to check colliderect only with tiles adjacent to player
         for tile in world.obstacle_tiles_list:
-            if tile[1].colliderect(self.rect.x + dx, self.rect.y, TILE_SIZE, TILE_SIZE):
+            if tile[1].colliderect(self.pos.x + dx + shrunk_tile_offset, self.pos.y + shrunk_tile_offset, shrunk_tile_size, shrunk_tile_size):
                 dx = 0
-                # self.pos.x = 280 # TODO: find where the collision is and then set the position to the closest integer
                 self.vel.x = 0
                 self.acc.x = 0
-            if tile[1].colliderect(self.rect.x, self.rect.y + dy, TILE_SIZE, TILE_SIZE):
+            if tile[1].colliderect(self.pos.x + shrunk_tile_offset, self.pos.y + shrunk_tile_offset + dy, shrunk_tile_size, shrunk_tile_size):
                 dy = 0
                 self.vel.y = 0
                 self.acc.y = 0
-        self.pos += (dx, dy)
+        self.pos += dx, dy
         self.rect.topleft = self.pos
 
     def kill_player(self):
@@ -253,11 +269,11 @@ class Enemy(pg.sprite.Sprite):
         elif self.action == self.action_die:
             self.kill()
 
-    def update(self, player_pos, sprites):
+    def update(self):
         self.update_action()
         self.apply_appropriate_image()
-        self.move(player_pos)
-        self.check_for_damage(sprites)
+        self.move()
+        self.check_for_damage()
         self.show_health_bar()
 
     def update_action(self):
@@ -284,9 +300,9 @@ class Enemy(pg.sprite.Sprite):
         pg.draw.rect(DISPLAY_SURFACE, pg.color.Color('black'), pg.Rect(bar_left, bar_top, self.rect.width + 1, 5),  1)
         pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bar_color), pg.Rect(bar_left + 1, bar_top + 1, health_fraction * (self.rect.width - 1), 3))
 
-    def move(self, player_pos):
+    def move(self):
         if self.is_active and self.action != self.action_idle:
-            vector = self.pos - player_pos
+            vector = self.pos - player.pos
             vector_length = sqrt(vector[0] ** 2 + vector[1] ** 2)
             self.direction = vector / vector_length
             self.pos -= self.direction * self.speed
@@ -294,14 +310,14 @@ class Enemy(pg.sprite.Sprite):
             speed_regain_ratio = 0.1  # TODO: check if speed regain after knock back should be parametrized based on enemy size/weight
             self.speed += (self.base_speed - self.speed) * speed_regain_ratio
 
-    def check_for_damage(self, sprites):
-        for sprite in sprites:
+    def check_for_damage(self):
+        for sprite in all_sprites:
             if isinstance(sprite, Projectile) \
                     and self.is_active \
                     and sprite.is_active \
                     and pg.sprite.collide_rect(self, sprite):
-                self.speed -= projectile.knock_back
-                self.health -= projectile.damage
+                self.speed -= sprite.knock_back
+                self.health -= sprite.damage
                 sprite.is_active = False  # TODO: projectile stay in enemy when hit, decrease the bounding box? Projectile should be attached to enemy when he's moving
                 if self.health <= 0:
                     self.is_active = False
@@ -325,9 +341,11 @@ class Crosshair(pg.sprite.Sprite):
         self.rect = self.image.get_bounding_rect()
         self.pos = (0, 0)
 
-    def update_position(self, pos):
-        self.pos = pos
-        self.rect.center = self.pos
+    def update(self):
+        for e in events:
+            if e.type == MOUSEMOTION:
+                self.pos = e.pos
+                self.rect.center = self.pos
 
 
 def display_debug_text(surface, pos, font, font_color=pg.Color('black')):
@@ -375,12 +393,12 @@ if __name__ == '__main__':
 
     pg.display.set_caption('game')
 
-    # create empty tile list
+    # Create empty tile list
     world_data = []
     for row in range(ROWS):
         r = [-1] * COLS
         world_data.append(r)
-    # load in level data and create world
+    # Load in level data and create world
     with open(f'level1.csv', newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         for x, row in enumerate(reader):
@@ -391,52 +409,35 @@ if __name__ == '__main__':
     world = World()
     player = world.process_data(world_data)
 
-    hearts = Hearts()
-    crosshair = Crosshair()
-
     all_sprites.add(player)
-    all_sprites.add(crosshair)
+    all_sprites.add(Crosshair())
+    all_sprites.add(Hearts())
 
     FRAME_NUMBER = 0
     while True:
-        for event in pg.event.get():
+        events = pg.event.get()
+        for event in events:
             if event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     pg.quit()
                     sys.exit()
-                elif event.key == K_SPACE:
-                    player.switch_weapon()
                 elif event.key == K_F1:
                     DEBUG_SHOW_INFO = not DEBUG_SHOW_INFO
                 elif event.key == K_F2:
                     DEBUG_SHOW_BOUNDING_BOX = not DEBUG_SHOW_BOUNDING_BOX
                 elif event.key == K_F3:
                     DEBUG_DRAW_GRID = not DEBUG_DRAW_GRID
-            elif event.type == MOUSEMOTION:
-                crosshair.update_position(event.pos)
 
-        if pg.mouse.get_pressed()[0] and not player.weapon_cooldown:
-            weapon_type = player.current_weapon
-            projectile = weapon_type(player.pos, pg.mouse.get_pos())
-            player.weapon_cooldown = weapon_type.cooldown
-            all_sprites.add(projectile)
         DISPLAY_SURFACE.fill(BACKGROUND_COLOR)
 
         world.draw()
 
-        player.update()
-        hearts.update(player.hearts, player.base_hearts)
-
         if DEBUG_DRAW_GRID:
             draw_grid()
 
-        non_enemy_sprites = [sprite for sprite in all_sprites if not isinstance(sprite, Enemy)]
-        for entity in all_sprites:
-            if isinstance(entity, Projectile):
-                entity.update()
-            elif isinstance(entity, Enemy):
-                entity.update(player.pos, non_enemy_sprites)
-            DISPLAY_SURFACE.blit(entity.image, entity.rect)
+        for s in all_sprites:
+            s.update()
+            DISPLAY_SURFACE.blit(s.image, s.rect)
 
         if DEBUG_SHOW_BOUNDING_BOX:
             draw_bounding_boxes()
