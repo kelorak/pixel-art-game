@@ -83,7 +83,7 @@ class World:
 
     def draw(self):
         for t in self.ground_tiles_list + self.obstacle_tiles_list:
-            DISPLAY_SURFACE.blit(t[0], t[1])
+            DISPLAY_SURFACE.blit(t[0], t[1].topleft - offset)
 
 
 class Hearts(pg.sprite.Sprite):
@@ -103,7 +103,7 @@ class Hearts(pg.sprite.Sprite):
             self.image.blit(self.empty_heart, start_pos)
             start_pos.x += TILE_SIZE
         self.rect = self.image.get_rect()
-        self.rect.topleft = (0, HEIGHT - TILE_SIZE)
+        self.rect.center = (0, HEIGHT - TILE_SIZE)
 
 
 class Player(pg.sprite.Sprite):
@@ -140,6 +140,8 @@ class Player(pg.sprite.Sprite):
         self.current_weapon = next(self.weapons)
         self.weapon_cooldown = 0
         self.hearts = self.base_hearts
+        self.dx = 0
+        self.dy = 0
 
     def update(self):
         for e in events:
@@ -213,6 +215,8 @@ class Player(pg.sprite.Sprite):
                 self.acc.y = 0
         self.pos += dx, dy
         self.rect.topleft = self.pos
+        self.dx = dx
+        self.dy = dy
 
     def kill_player(self):
         self.image, self.rect = rot_center(self.image, 90)
@@ -394,15 +398,13 @@ if __name__ == '__main__':
 
     # Create empty tile list
     world_data = []
-    for row in range(ROWS):
-        r = [-1] * COLS
-        world_data.append(r)
     # Load in level data and create world
     with open(f'level1.csv', newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         for x, row in enumerate(reader):
-            for y, tile in enumerate(row):
-                world_data[x][y] = int(tile)
+            world_data.append([])
+            for tile in row:
+                world_data[x].append(int(tile))
 
     all_sprites = pg.sprite.Group()
     world = World()
@@ -428,7 +430,10 @@ if __name__ == '__main__':
                     DEBUG_DRAW_GRID = not DEBUG_DRAW_GRID
 
         DISPLAY_SURFACE.fill(BACKGROUND_COLOR)
+        offset_x = player.rect.centerx - (DISPLAY_SURFACE.get_width() // 2)
+        offset_y = player.rect.centery - (DISPLAY_SURFACE.get_height() // 2)
 
+        offset = Vec(offset_x, offset_y)
         world.draw()
 
         if DEBUG_DRAW_GRID:
@@ -436,7 +441,10 @@ if __name__ == '__main__':
 
         for s in all_sprites:
             s.update()
-            DISPLAY_SURFACE.blit(s.image, s.rect)
+            position_to_draw = s.rect.center
+            if not isinstance(s, Crosshair) and not isinstance(s, Hearts):
+                position_to_draw -= offset
+            DISPLAY_SURFACE.blit(s.image, position_to_draw)
 
         if DEBUG_SHOW_BOUNDING_BOX:
             draw_bounding_boxes()
