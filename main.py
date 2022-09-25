@@ -227,7 +227,7 @@ class Player(pg.sprite.Sprite):
 class Enemy(pg.sprite.Sprite):
     base_speed = 0.5
     base_health = 100
-    sight = 8
+    sight = 4
 
     action_idle = 0
     action_move = 1
@@ -384,11 +384,15 @@ def draw_bounding_boxes():
     for sprite in all_sprites:
         if hasattr(sprite, 'is_active'):
             bounding_box_color = 'green' if sprite.is_active else 'red'
-            pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bounding_box_color), sprite.rect, 1)
+            rect_to_draw = sprite.rect.copy()
+            rect_to_draw.x -= offset.x - TILE_SIZE / 2
+            rect_to_draw.y -= offset_y - TILE_SIZE / 2
+            pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bounding_box_color), rect_to_draw, 1)
             if isinstance(sprite, Enemy):
-                pg.draw.circle(DISPLAY_SURFACE, pg.color.Color('blue'), sprite.rect.center, TILE_SIZE * sprite.sight, 1)
+                pg.draw.circle(DISPLAY_SURFACE, pg.color.Color('blue'), sprite.rect.bottomright - offset, TILE_SIZE * sprite.sight, 1)
                 if not sprite.action == sprite.action_idle:
-                    pg.draw.aaline(DISPLAY_SURFACE, pg.color.Color('orange'), sprite.rect.center, player.rect.center, 1)
+                    sight_spotted_line_offset = offset - Vec(TILE_SIZE / 2, TILE_SIZE / 2)
+                    pg.draw.aaline(DISPLAY_SURFACE, pg.color.Color('orange'), sprite.rect.center - sight_spotted_line_offset, player.rect.center - sight_spotted_line_offset, 1)
 
 
 def load_world_data(level_csv: str) -> list:
