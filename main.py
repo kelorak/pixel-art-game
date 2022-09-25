@@ -1,10 +1,9 @@
 import csv
 import sys
 from itertools import cycle
-from math import sqrt
-import psutil
-import math
+from math import sqrt, hypot
 
+import psutil
 import pygame as pg
 from pygame.locals import K_ESCAPE, K_SPACE, MOUSEMOTION, KEYDOWN
 from pygame.locals import K_F1, K_F2, K_F3
@@ -19,11 +18,11 @@ from weapons import Projectile, Arrow, ThrowingAxe
 
 
 def image_at(sheet: pg.surface.Surface, row: int, col: int):
-    offset = 16
-    ratio = TILE_SIZE / offset
-    image = pg.Surface((offset, offset)).convert_alpha()
-    image.blit(sheet, (0, 0), ((col * offset), row * offset, offset, offset))
-    image = pg.transform.scale(image, (offset * ratio, offset * ratio))
+    offset_pixels = 16
+    ratio = TILE_SIZE / offset_pixels
+    image = pg.Surface((offset_pixels, offset_pixels)).convert_alpha()
+    image.blit(sheet, (0, 0), ((col * offset_pixels), row * offset_pixels, offset_pixels, offset_pixels))
+    image = pg.transform.scale(image, (offset_pixels * ratio, offset_pixels * ratio))
     image.set_colorkey((0, 0, 0))
 
     return image
@@ -33,9 +32,9 @@ world_sheet = pg.image.load('sprites/Sprite-0001.png').convert_alpha()
 img_list = []
 rows_count = int(world_sheet.get_height() / SPRITE_SHEET_ASSET_SIZE)
 cols_count = int(world_sheet.get_width() / SPRITE_SHEET_ASSET_SIZE)
-for row_idx in range(rows_count):
+for row_index in range(rows_count):
     for col_idx in range(cols_count):
-        img = image_at(world_sheet, row_idx, col_idx)
+        img = image_at(world_sheet, row_index, col_idx)
         img_list.append(img)
 
 
@@ -45,17 +44,18 @@ class World:
         self.obstacle_tiles_list = []
 
     def process_data(self, data):
+        player_object = None
         # Iterate through each value in level data file
-        for y, row in enumerate(data):
-            for x, tile_id in enumerate(row):
+        for y, row_data in enumerate(data):
+            for x, tile_id in enumerate(row_data):
                 if tile_id >= 0:
-                    img = img_list[tile_id]
-                    img_rect = img.get_rect()
+                    image = img_list[tile_id]
+                    img_rect = image.get_rect()
                     img_rect.x = x * TILE_SIZE
                     img_rect.y = y * TILE_SIZE
-                    tile_data = (img, img_rect)
+                    tile_data = (image, img_rect)
                     if tile_id == 0:
-                        player = Player(pos=(x * TILE_SIZE, y * TILE_SIZE))
+                        player_object = Player(pos=(x * TILE_SIZE, y * TILE_SIZE))
 
                         # Add default tile under the player:
                         def_tile_img = img_list[1]
@@ -78,8 +78,8 @@ class World:
                         all_sprites.add(enemy)
                     elif 2 <= tile_id <= 15:
                         self.obstacle_tiles_list.append(tile_data)
-
-        return player
+        assert player_object is not None
+        return player_object
 
     def draw(self):
         for t in self.ground_tiles_list + self.obstacle_tiles_list:
@@ -204,12 +204,12 @@ class Player(pg.sprite.Sprite):
         shrunk_tile_size = (shrunk_tile_ratio * TILE_SIZE)
         shrunk_tile_offset = (((1 - shrunk_tile_ratio) / 2) * TILE_SIZE)
         # TODO: filter out tile list to check colliderect only with tiles adjacent to player
-        for tile in world.obstacle_tiles_list:
-            if tile[1].colliderect(self.pos.x + dx + shrunk_tile_offset, self.pos.y + shrunk_tile_offset, shrunk_tile_size, shrunk_tile_size):
+        for t in world.obstacle_tiles_list:
+            if t[1].colliderect(self.pos.x + dx + shrunk_tile_offset, self.pos.y + shrunk_tile_offset, shrunk_tile_size, shrunk_tile_size):
                 dx = 0
                 self.vel.x = 0
                 self.acc.x = 0
-            if tile[1].colliderect(self.pos.x + shrunk_tile_offset, self.pos.y + shrunk_tile_offset + dy, shrunk_tile_size, shrunk_tile_size):
+            if t[1].colliderect(self.pos.x + shrunk_tile_offset, self.pos.y + shrunk_tile_offset + dy, shrunk_tile_size, shrunk_tile_size):
                 dy = 0
                 self.vel.y = 0
                 self.acc.y = 0
@@ -280,7 +280,7 @@ class Enemy(pg.sprite.Sprite):
         self.show_health_bar()
 
     def update_action(self):
-        distance_from_player = math.hypot(self.pos.x - player.pos.x, self.pos.y - player.pos.y)
+        distance_from_player = hypot(self.pos.x - player.pos.x, self.pos.y - player.pos.y)
         if distance_from_player < TILE_SIZE:
             self.action = self.action_attack
         elif distance_from_player < TILE_SIZE * self.sight:
@@ -376,7 +376,7 @@ def draw_grid():
     block_size = TILE_SIZE
     for x in range(0, WIDTH, block_size):
         for y in range(0, HEIGHT, block_size):
-            rect = pg.Rect(x-1, y-1, block_size+1, block_size+1)
+            rect = pg.Rect(x - 1, y - 1, block_size + 1, block_size + 1)
             pg.draw.rect(DISPLAY_SURFACE, pg.color.Color('magenta'), rect, 1)
 
 
@@ -391,20 +391,24 @@ def draw_bounding_boxes():
                     pg.draw.aaline(DISPLAY_SURFACE, pg.color.Color('orange'), sprite.rect.center, player.rect.center, 1)
 
 
+def load_world_data(level_csv: str) -> list:
+    output = []
+
+    with open(level_csv, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',')
+        for row_idx, level_row in enumerate(reader):
+            output.append([])
+            for tile in level_row:
+                output[row_idx].append(int(tile))
+    return output
+
+
 if __name__ == '__main__':
     FramePerSec = pg.time.Clock()
 
     pg.display.set_caption('game')
 
-    # Create empty tile list
-    world_data = []
-    # Load in level data and create world
-    with open('level1.csv', newline='') as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-        for x, row in enumerate(reader):
-            world_data.append([])
-            for tile in row:
-                world_data[x].append(int(tile))
+    world_data = load_world_data('level1.csv')
 
     all_sprites = pg.sprite.Group()
     world = World()
