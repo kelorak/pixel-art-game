@@ -37,6 +37,7 @@ jobs:
       run: |
         xcopy font dist\font\
         xcopy sprites dist\sprites\
+        xcopy level1.csv dist\
     - name: Upload artifacts
       uses: actions/upload-artifact@v2.2.0
       with:
