@@ -12,7 +12,7 @@ from pygame.locals import K_UP, K_LEFT, K_DOWN, K_RIGHT
 from pygame.locals import K_w, K_a, K_s, K_d
 from pygame.math import Vector2 as Vec
 
-from settings import BACKGROUND_COLOR, WIDTH, HEIGHT, TILE_SIZE, SPRITE_SHEET_ASSET_SIZE, DISPLAY_SURFACE, FONT, FPS, EPSILON, ROWS, COLS, FRAMES_PER_ANIMATION_CHANGE  # constants
+from settings import BACKGROUND_COLOR, WIDTH, HEIGHT, TILE_SIZE, SPRITE_SHEET_ASSET_SIZE, DISPLAY_SURFACE, FONT, FPS, EPSILON, FRAMES_PER_ANIMATION_CHANGE  # constants
 from settings import DEBUG_SHOW_INFO, DEBUG_SHOW_BOUNDING_BOX, DEBUG_DRAW_GRID  # debug options
 from utils import rot_center
 from weapons import Projectile, Arrow, ThrowingAxe
@@ -29,7 +29,7 @@ def image_at(sheet: pg.surface.Surface, row: int, col: int):
     return image
 
 
-world_sheet = pg.image.load(r'Sprite-0001.png').convert_alpha()
+world_sheet = pg.image.load('sprites/Sprite-0001.png').convert_alpha()
 img_list = []
 rows_count = int(world_sheet.get_height() / SPRITE_SHEET_ASSET_SIZE)
 cols_count = int(world_sheet.get_width() / SPRITE_SHEET_ASSET_SIZE)
@@ -399,7 +399,7 @@ if __name__ == '__main__':
     # Create empty tile list
     world_data = []
     # Load in level data and create world
-    with open(f'level1.csv', newline='') as csvfile:
+    with open('level1.csv', newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         for x, row in enumerate(reader):
             world_data.append([])
