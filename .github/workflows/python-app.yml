@@ -32,6 +32,15 @@ jobs:
     - name: Build executable
       run: |
         pip install pyinstaller
-        pyinstaller --onefile
+        pyinstaller main.py --onefile
+    - name: Copy additional dependencies
+      run: |
         xcopy font dist\font\
         xcopy sprites dist\sprites\
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2.2.0
+      with:
+        name: game
+        path: dist/
+        if-no-files-found: error
+        retention-days: 90
