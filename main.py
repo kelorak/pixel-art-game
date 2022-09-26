@@ -168,7 +168,10 @@ class Player(pg.sprite.Sprite):
         frame_update_count = int(animation_frame_time / (1000 / FPS))
         if abs(self.vel.x) > 0.5 or abs(self.vel.y) > 0.5:
             if FRAME_NUMBER % int(10 / self.acceleration) == 0:
-                self.image = next(self.player_walking_sprite_right) if self.vel.x >= 0 else next(self.player_walking_sprite_left)
+                if self.vel.x >= 0:
+                    self.image = next(self.player_walking_sprite_right)
+                else:
+                    next(self.player_walking_sprite_left)
         elif FRAME_NUMBER % frame_update_count == 0:
             self.image = next(self.player_idle_sprite_right) if self.vel.x >= 0 else next(self.player_idle_sprite_left)
 
@@ -273,10 +276,16 @@ class Enemy(pg.sprite.Sprite):
                 self.image = next(self.enemy_idle_animation) if self.direction.x > 0 else next(self.enemy_idle_animation)
         elif self.action == self.action_move:
             if FRAME_NUMBER % FRAMES_PER_ANIMATION_CHANGE == 0:
-                self.image = next(self.enemy_move_right_animation) if self.direction.x < 0 else next(self.enemy_move_left_animation)
+                if self.direction.x < 0:
+                    self.image = next(self.enemy_move_right_animation)
+                else:
+                    next(self.enemy_move_left_animation)
         elif self.action == self.action_attack:
             if FRAME_NUMBER % FRAMES_PER_ANIMATION_CHANGE == 0:
-                self.image = next(self.enemy_attack_right_animation) if self.direction.x < 0 else next(self.enemy_attack_left_animation)
+                if self.direction.x < 0:
+                    self.image = next(self.enemy_attack_right_animation)
+                else:
+                    next(self.enemy_attack_left_animation)
         elif self.action == self.action_die:
             self.kill()
 
@@ -308,8 +317,13 @@ class Enemy(pg.sprite.Sprite):
 
         bar_left = self.pos.x
         bar_top = self.pos.y - self.rect.height/4
-        pg.draw.rect(DISPLAY_SURFACE, pg.color.Color('black'), pg.Rect(bar_left, bar_top, self.rect.width + 1, 5),  1)
-        pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bar_color), pg.Rect(bar_left + 1, bar_top + 1, health_fraction * (self.rect.width - 1), 3))
+        pg.draw.rect(DISPLAY_SURFACE,
+                     pg.color.Color('black'),
+                     pg.Rect(bar_left, bar_top, self.rect.width + 1, 5),
+                     1)
+        pg.draw.rect(DISPLAY_SURFACE,
+                     pg.color.Color(bar_color),
+                     pg.Rect(bar_left + 1, bar_top + 1, health_fraction * (self.rect.width - 1), 3))
 
     def move(self):
         if self.is_active and self.action != self.action_idle:
@@ -318,7 +332,8 @@ class Enemy(pg.sprite.Sprite):
             self.direction = vector / vector_length
             self.pos -= self.direction * self.speed
             self.rect.topleft = self.pos
-            speed_regain_ratio = 0.1  # TODO: check if speed regain after knock back should be parametrized based on enemy size/weight
+            # TODO: check if speed regain after knock back should be parametrized based on enemy size/weight
+            speed_regain_ratio = 0.1
             self.speed += (self.base_speed - self.speed) * speed_regain_ratio
 
     def check_for_damage(self):
@@ -329,7 +344,9 @@ class Enemy(pg.sprite.Sprite):
                     and pg.sprite.collide_rect(self, sprite):
                 self.speed -= sprite.knock_back
                 self.health -= sprite.damage
-                sprite.is_active = False  # TODO: projectile stay in enemy when hit, decrease the bounding box? Projectile should be attached to enemy when he's moving
+                # TODO: projectile stay in enemy when hit, decrease the bounding box?
+                #  Projectile should be attached to enemy when he's moving
+                sprite.is_active = False
                 if self.health <= 0:
                     self.is_active = False
             elif isinstance(sprite, Player) \
@@ -398,10 +415,18 @@ def draw_bounding_boxes():
             rect_to_draw.y -= offset_y - TILE_SIZE / 2
             pg.draw.rect(DISPLAY_SURFACE, pg.color.Color(bounding_box_color), rect_to_draw, 1)
             if isinstance(sprite, Enemy):
-                pg.draw.circle(DISPLAY_SURFACE, pg.color.Color('blue'), sprite.rect.bottomright - offset, TILE_SIZE * sprite.sight, 1)
+                pg.draw.circle(DISPLAY_SURFACE,
+                               pg.color.Color('blue'),
+                               sprite.rect.bottomright - offset,
+                               TILE_SIZE * sprite.sight,
+                               1)
                 if not sprite.action == sprite.action_idle:
                     sight_spotted_line_offset = offset - Vec(TILE_SIZE / 2, TILE_SIZE / 2)
-                    pg.draw.aaline(DISPLAY_SURFACE, pg.color.Color('orange'), sprite.rect.center - sight_spotted_line_offset, player.rect.center - sight_spotted_line_offset, 1)
+                    pg.draw.aaline(DISPLAY_SURFACE,
+                                   pg.color.Color('orange'),
+                                   sprite.rect.center - sight_spotted_line_offset,
+                                   player.rect.center - sight_spotted_line_offset,
+                                   1)
 
 
 def load_world_data(level_csv: str) -> list:
