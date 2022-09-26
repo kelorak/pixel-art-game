@@ -148,16 +148,20 @@ class Player(pg.sprite.Sprite):
             if e.type == KEYDOWN and e.key == K_SPACE:
                 self.switch_weapon()
         if pg.mouse.get_pressed()[0] and not self.weapon_cooldown:
-            weapon_type = self.current_weapon
-            projectile = weapon_type(self.pos, pg.mouse.get_pos())
-            self.weapon_cooldown = weapon_type.cooldown
-            all_sprites.add(projectile)
+            self.attack()
         self.apply_appropriate_image()
         self.move()
         if self.immunity:
             self.immunity -= 1
         if self.weapon_cooldown:
             self.weapon_cooldown -= 1
+
+    def attack(self):
+        weapon_type = self.current_weapon
+        mouse_pos = Vec(pg.mouse.get_pos())
+        projectile = weapon_type(self.pos, mouse_pos + offset)
+        self.weapon_cooldown = weapon_type.cooldown
+        all_sprites.add(projectile)
 
     def apply_appropriate_image(self):
         animation_frame_time = 300
@@ -170,6 +174,19 @@ class Player(pg.sprite.Sprite):
 
     def switch_weapon(self):
         self.current_weapon = next(self.weapons)
+
+    def check_collision_with_world_boundary(self):
+        # Check for collision with screen boundaries - sanity check, it should be handled by level map design
+        max_x = (len(world_data[0]) - 1) * TILE_SIZE
+        max_y = (len(world_data) - 1) * TILE_SIZE
+        if self.pos.x > max_x:
+            self.pos.x = max_x
+        elif self.pos.x < 0:
+            self.pos.x = 0
+        if self.pos.y > max_y:
+            self.pos.y = max_y
+        elif self.pos.y < 0:
+            self.pos.y = 0
 
     def move(self):
         self.acc = Vec(0, 0)
@@ -188,16 +205,7 @@ class Player(pg.sprite.Sprite):
         self.vel += self.acc
         dx, dy = self.vel + 0.5 * self.acc
 
-        # Check for collision with screen boundaries - sanity check, it should be handled by level map design
-        if self.pos.x > WIDTH:
-            self.pos.x = WIDTH
-        elif self.pos.x < 0:
-            self.pos.x = 0
-        if self.pos.y > HEIGHT:
-            self.pos.y = HEIGHT
-        elif self.pos.y < 0:
-            self.pos.y = 0
-        self.rect.topleft = self.pos
+        self.check_collision_with_world_boundary()
 
         # Check for collision with obstacles
         shrunk_tile_ratio = 0.75  # compare rect collision with smaller tile for smoother movement near narrow passages
@@ -214,7 +222,7 @@ class Player(pg.sprite.Sprite):
                 self.vel.y = 0
                 self.acc.y = 0
         self.pos += dx, dy
-        self.rect.topleft = self.pos
+        self.rect.center = self.pos
         self.dx = dx
         self.dy = dy
 
@@ -362,7 +370,8 @@ def display_debug_text(surface, pos, font, font_color=pg.Color('black')):
            f'{player.acc=}\n' \
            f'{player.vel=}\n' \
            f'{ram_usage=}\n' \
-           f'{cpu_usage=}\n'
+           f'{cpu_usage=}\n' \
+           f'{offset=}\n'
     lines = text.splitlines()
     font_height = font.get_height()
     pos_x, pos_y = pos

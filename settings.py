@@ -7,8 +7,6 @@ pg.mouse.set_visible(False)
 
 WIDTH = 1500
 HEIGHT = 1000
-ROWS = 20
-COLS = 30
 SPRITE_SHEET_ASSET_SIZE = 16
 TILE_SIZE = HEIGHT // 12
 FPS = 60
