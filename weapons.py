@@ -14,11 +14,15 @@ class Projectile(pg.sprite.Sprite):
     cooldown: int
     knock_back: int
 
-    def __init__(self, origin, destination):
+    def __init__(self, origin, destination, max_x, max_y):
         super().__init__()
         angle = angle_between_vectors(origin, destination)
 
         self.image, self.rect = rot_center(self.sprite, angle + 90)
+        self.rect.x += self.rect.width
+        self.rect.y += self.rect.height
+        self.rect.width *= 0.5
+        self.rect.height *= 0.5
         self.pos = origin + (1, 1)
         self.dest = destination
         self.rect.center = self.pos
@@ -27,21 +31,23 @@ class Projectile(pg.sprite.Sprite):
         vector_length = sqrt(vector[0] ** 2 + vector[1] ** 2)
         self.direction = vector / vector_length
         self.is_active = True
+        self.max_x = max_x
+        self.max_y = max_y
 
     def update(self):
         if self.is_active:
             self.pos -= self.direction * self.speed
             self.rect.center = self.pos
-            vector = self.pos - self.dest
 
             self.speed -= self.speed_decay
             if self.speed <= 0:
                 self.is_active = False
 
-            distance_from_destination = sqrt(vector[0] ** 2 + vector[1] ** 2)
-            if distance_from_destination < 10 or \
-                    self.pos.x < 0 or self.pos.x > WIDTH or \
-                    self.pos.y < 0 or self.pos.y > HEIGHT:
+            # Stop the projectile when it flies out of the field of view:
+            if self.pos.x < -WIDTH / 2 or \
+                    self.pos.x > self.max_x + WIDTH / 2 or \
+                    self.pos.y < -HEIGHT / 2 or \
+                    self.pos.y > self.max_y + HEIGHT / 2:
                 self.is_active = False
 
 

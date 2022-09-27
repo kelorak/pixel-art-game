@@ -159,7 +159,7 @@ class Player(pg.sprite.Sprite):
     def attack(self):
         weapon_type = self.current_weapon
         mouse_pos = Vec(pg.mouse.get_pos())
-        projectile = weapon_type(self.pos, mouse_pos + offset)
+        projectile = weapon_type(self.pos, mouse_pos + offset, max_x, max_y)
         self.weapon_cooldown = weapon_type.cooldown
         all_sprites.add(projectile)
 
@@ -180,8 +180,6 @@ class Player(pg.sprite.Sprite):
 
     def check_collision_with_world_boundary(self):
         # Check for collision with screen boundaries - sanity check, it should be handled by level map design
-        max_x = (len(world_data[0]) - 1) * TILE_SIZE
-        max_y = (len(world_data) - 1) * TILE_SIZE
         if self.pos.x > max_x:
             self.pos.x = max_x
         elif self.pos.x < 0:
@@ -315,8 +313,8 @@ class Enemy(pg.sprite.Sprite):
         else:
             bar_color = 'red'
 
-        bar_left = self.pos.x
-        bar_top = self.pos.y - self.rect.height/4
+        bar_left = self.pos.x + self.rect.width / 2 - offset.x
+        bar_top = self.pos.y + self.rect.height / 4 - offset.y
         pg.draw.rect(DISPLAY_SURFACE,
                      pg.color.Color('black'),
                      pg.Rect(bar_left, bar_top, self.rect.width + 1, 5),
@@ -386,8 +384,8 @@ def display_debug_text(surface, pos, font, font_color=pg.Color('black')):
            f'{player.pos.y=}\n' \
            f'{player.acc=}\n' \
            f'{player.vel=}\n' \
-           f'{ram_usage=}\n' \
-           f'{cpu_usage=}\n' \
+           f'{ram_usage=}%\n' \
+           f'{cpu_usage=}%\n' \
            f'{offset=}\n'
     lines = text.splitlines()
     font_height = font.get_height()
@@ -447,6 +445,8 @@ if __name__ == '__main__':
     pg.display.set_caption('game')
 
     world_data = load_world_data('level1.csv')
+    max_x = (len(world_data[0]) - 1) * TILE_SIZE
+    max_y = (len(world_data) - 1) * TILE_SIZE
 
     all_sprites = pg.sprite.Group()
     world = World()
