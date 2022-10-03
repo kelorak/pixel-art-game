@@ -179,7 +179,6 @@ class Player(pg.sprite.Sprite):
         self.current_weapon = next(self.weapons)
 
     def check_collision_with_world_boundary(self):
-        # Check for collision with screen boundaries - sanity check, it should be handled by level map design
         if self.pos.x > max_x:
             self.pos.x = max_x
         elif self.pos.x < 0:
@@ -208,6 +207,7 @@ class Player(pg.sprite.Sprite):
 
         self.check_collision_with_world_boundary()
 
+        # TODO: code redundancy - the same block is in Enemy class. Can it be wrapped in a function?
         # Check for collision with obstacles
         shrunk_tile_ratio = 0.75  # compare rect collision with smaller tile for smoother movement near narrow passages
         shrunk_tile_size = (shrunk_tile_ratio * TILE_SIZE)
@@ -256,7 +256,7 @@ class Enemy(pg.sprite.Sprite):
         super().__init__()
         self.image = next(self.enemy_idle_animation)
         self.rect = self.image.get_rect()
-        self.rect.topleft = position
+        self.rect.center = position
 
         self.pos = Vec(position)
         self.direction = Vec(0, 0)
@@ -328,8 +328,24 @@ class Enemy(pg.sprite.Sprite):
             vector = self.pos - player.pos
             vector_length = sqrt(vector[0] ** 2 + vector[1] ** 2)
             self.direction = vector / vector_length
-            self.pos -= self.direction * self.speed
-            self.rect.topleft = self.pos
+
+            dx, dy = -self.direction * self.speed
+
+            # TODO: code redundancy - the same block is in Player class. Can it be wrapped in a function?
+            # Check for collision with obstacles
+            shrunk_tile_ratio = 0.75  # compare rect collision with smaller tile for smoother movement near narrow passages
+            shrunk_tile_size = (shrunk_tile_ratio * TILE_SIZE)
+            shrunk_tile_offset = (((1 - shrunk_tile_ratio) / 2) * TILE_SIZE)
+            # TODO: filter out tile list to check colliderect only with tiles adjacent to enemy
+            for t in world.obstacle_tiles_list:
+                if t[1].colliderect(self.pos.x + dx + shrunk_tile_offset, self.pos.y + shrunk_tile_offset, shrunk_tile_size,
+                                    shrunk_tile_size):
+                    dx = 0
+                if t[1].colliderect(self.pos.x + shrunk_tile_offset, self.pos.y + shrunk_tile_offset + dy, shrunk_tile_size,
+                                    shrunk_tile_size):
+                    dy = 0
+            self.pos += dx, dy
+            self.rect.center = self.pos
             # TODO: check if speed regain after knock back should be parametrized based on enemy size/weight
             speed_regain_ratio = 0.1
             self.speed += (self.base_speed - self.speed) * speed_regain_ratio
